@@ -310,6 +310,7 @@ extension StatusItemController {
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
             let displayText = self.menuBarDisplayText(for: primaryProvider, snapshot: snapshot)
+            let stackedLines = self.menuBarStackedTextLines(for: primaryProvider, snapshot: snapshot)
             let signature = [
                 "mode=brandPercent",
                 "provider=\(primaryProvider.rawValue)",
@@ -320,13 +321,26 @@ extension StatusItemController {
                 "stale=\(stale ? "1" : "0")",
                 "status=\(statusIndicator.rawValue)",
                 "text=\(displayText ?? "nil")",
+                "stackedSession=\(stackedLines?.session ?? "nil")",
+                "stackedWeekly=\(stackedLines?.weekly ?? "nil")",
                 "anim=\(needsAnimation ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
                 return true
             }
-            self.setButtonImage(brand, for: button)
-            self.setButtonTitle(displayText, for: button)
+            if self.settings.menuBarDisplayMode == .stackedText,
+               let stackedLines,
+               let image = IconRenderer.makeStackedTextImage(
+                   provider: primaryProvider,
+                   sessionText: stackedLines.session,
+                   weeklyText: stackedLines.weekly)
+            {
+                self.setButtonTitle(nil, for: button)
+                self.setButtonImage(image, for: button)
+            } else {
+                self.setButtonImage(brand, for: button)
+                self.setButtonTitle(displayText, for: button)
+            }
             return false
         }
 
@@ -426,8 +440,19 @@ extension StatusItemController {
            let brand = ProviderBrandIcon.image(for: provider)
         {
             let displayText = self.menuBarDisplayText(for: provider, snapshot: snapshot)
-            self.setButtonImage(brand, for: button)
-            self.setButtonTitle(displayText, for: button)
+            if self.settings.menuBarDisplayMode == .stackedText,
+               let stackedLines = self.menuBarStackedTextLines(for: provider, snapshot: snapshot),
+               let image = IconRenderer.makeStackedTextImage(
+                   provider: provider,
+                   sessionText: stackedLines.session,
+                   weeklyText: stackedLines.weekly)
+            {
+                self.setButtonTitle(nil, for: button)
+                self.setButtonImage(image, for: button)
+            } else {
+                self.setButtonImage(brand, for: button)
+                self.setButtonTitle(displayText, for: button)
+            }
             return
         }
 
@@ -556,7 +581,7 @@ extension StatusItemController {
             now: now)
         let pace: UsagePace?
         switch mode {
-        case .percent:
+        case .percent, .stackedText:
             pace = nil
         case .pace, .both:
             let weeklyWindow = codexProjection?.rateWindow(for: .weekly) ?? snapshot?.secondary
@@ -582,6 +607,21 @@ extension StatusItemController {
         }
 
         return displayText
+    }
+
+    func menuBarStackedTextLines(
+        for provider: UsageProvider,
+        snapshot: UsageSnapshot?)
+        -> (session: String, weekly: String)?
+    {
+        let style = self.store.style(for: provider)
+        let windows = snapshot.map {
+            IconRemainingResolver.resolvedWindows(snapshot: $0, style: style)
+        }
+        return MenuBarDisplayText.stackedPercentLines(
+            sessionWindow: windows?.primary,
+            weeklyWindow: windows?.secondary,
+            showUsed: self.settings.usageBarsShowUsed)
     }
 
     private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {

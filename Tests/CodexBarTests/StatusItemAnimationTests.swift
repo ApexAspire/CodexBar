@@ -796,6 +796,62 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `menu bar stacked text formats session and weekly percentages`() {
+        let lines = MenuBarDisplayText.stackedPercentLines(
+            sessionWindow: RateWindow(usedPercent: 96, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            weeklyWindow: RateWindow(usedPercent: 29, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            showUsed: false)
+
+        #expect(lines?.session == "S: 4%")
+        #expect(lines?.weekly == "W: 71%")
+    }
+
+    @Test
+    func `merged brand icon stacked text mode renders a composite image`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-stacked-text"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarDisplayMode = .stackedText
+        settings.usageBarsShowUsed = false
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 96, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 29, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        _ = controller.applyIcon(phase: nil)
+
+        let button = controller.statusItem.button
+        #expect(button?.title.isEmpty == true)
+        #expect(button?.imagePosition == .imageOnly)
+        #expect(button?.image != nil)
+        #expect((button?.image?.size.width ?? 0) > 16)
+    }
+
+    @Test
     func `menu bar display text uses credits when codex weekly is exhausted`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-credits-fallback"),

@@ -2,11 +2,34 @@ import CodexBarCore
 import Foundation
 
 enum MenuBarDisplayText {
-    static func percentText(window: RateWindow?, showUsed: Bool) -> String? {
+    private static func percentValue(window: RateWindow?, showUsed: Bool) -> Int? {
         guard let window else { return nil }
         let percent = showUsed ? window.usedPercent : window.remainingPercent
-        let clamped = min(100, max(0, percent))
-        return String(format: "%.0f%%", clamped)
+        return Int(min(100, max(0, percent)).rounded())
+    }
+
+    static func percentText(window: RateWindow?, showUsed: Bool) -> String? {
+        let percent = self.percentValue(window: window, showUsed: showUsed)
+        guard let percent else {
+            return nil
+        }
+        return "\(percent)%"
+    }
+
+    static func stackedPercentLines(
+        sessionWindow: RateWindow?,
+        weeklyWindow: RateWindow?,
+        showUsed: Bool)
+        -> (session: String, weekly: String)?
+    {
+        let session = self.percentValue(window: sessionWindow, showUsed: showUsed)
+        let weekly = self.percentValue(window: weeklyWindow, showUsed: showUsed)
+        guard session != nil || weekly != nil else {
+            return nil
+        }
+        return (
+            session: "S: \(session.map { "\($0)%" } ?? "--")",
+            weekly: "W: \(weekly.map { "\($0)%" } ?? "--")")
     }
 
     static func paceText(pace: UsagePace?) -> String? {
@@ -32,6 +55,8 @@ enum MenuBarDisplayText {
             // Fall back to percent-only when pace is unavailable (e.g. Copilot)
             guard let paceText = Self.paceText(pace: pace) else { return percent }
             return "\(percent) · \(paceText)"
+        case .stackedText:
+            return nil
         }
     }
 }
