@@ -92,6 +92,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var blinkAmounts: [UsageProvider: CGFloat] = [:]
     var wiggleAmounts: [UsageProvider: CGFloat] = [:]
     var tiltAmounts: [UsageProvider: CGFloat] = [:]
+    var stackedTextViews: [ObjectIdentifier: StackedTextStatusView] = [:]
     var blinkForceUntil: Date?
     var loginPhase: LoginPhase = .idle {
         didSet {
@@ -484,10 +485,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.statusItem.isVisible = anyEnabled || force
             for item in self.statusItems.values {
                 item.isVisible = false
+                self.removeStackedTextView(from: item)
             }
             self.attachMenus()
         } else {
             self.statusItem.isVisible = false
+            self.removeStackedTextView(from: self.statusItem)
             let fallback = self.fallbackProvider
             for provider in UsageProvider.allCases {
                 let isEnabled = self.isEnabled(provider)
@@ -497,6 +500,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                     item.isVisible = true
                 } else if let item = self.statusItems[provider] {
                     item.isVisible = false
+                    self.removeStackedTextView(from: item)
                 }
             }
             self.attachMenus(fallback: fallback)
@@ -567,7 +571,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func rebuildProviderStatusItems() {
+        self.removeStackedTextView(from: self.statusItem)
         for item in self.statusItems.values {
+            self.removeStackedTextView(from: item)
             self.statusBar.removeStatusItem(item)
         }
         self.statusItems.removeAll(keepingCapacity: true)

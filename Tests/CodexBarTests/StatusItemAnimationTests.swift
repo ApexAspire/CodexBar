@@ -804,10 +804,12 @@ struct StatusItemAnimationTests {
 
         #expect(lines?.session == "S:4%")
         #expect(lines?.weekly == "W:71%")
+        #expect(lines?.sessionSeverity == .critical)
+        #expect(lines?.weeklySeverity == .normal)
     }
 
     @Test
-    func `merged brand icon stacked text mode renders a composite image`() {
+    func `merged brand icon stacked text mode installs a stacked text view`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-stacked-text"),
             zaiTokenStore: NoopZaiTokenStore(),
@@ -847,8 +849,15 @@ struct StatusItemAnimationTests {
         let button = controller.statusItem.button
         #expect(button?.title.isEmpty == true)
         #expect(button?.imagePosition == .imageOnly)
-        #expect(button?.image != nil)
-        #expect((button?.image?.size.width ?? 0) > 16)
+        #expect(button?.image == nil)
+        let stackedView = button.flatMap { controller.stackedTextViews[ObjectIdentifier($0)] }
+        #expect(stackedView != nil)
+        #expect(stackedView?.content == StackedTextStatusView.Content(
+            provider: .codex,
+            sessionText: "S:4%",
+            weeklyText: "W:71%",
+            sessionSeverity: .critical,
+            weeklySeverity: .normal))
     }
 
     @Test
