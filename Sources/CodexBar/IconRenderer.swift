@@ -147,7 +147,7 @@ enum IconRenderer {
         paragraph.maximumLineHeight = 8
 
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(ofSize: 8, weight: .medium),
+            .font: NSFont.monospacedSystemFont(ofSize: 9, weight: .medium),
             .foregroundColor: NSColor.labelColor,
             .paragraphStyle: paragraph,
         ]

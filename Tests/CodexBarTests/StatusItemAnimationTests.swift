@@ -802,8 +802,8 @@ struct StatusItemAnimationTests {
             weeklyWindow: RateWindow(usedPercent: 29, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             showUsed: false)
 
-        #expect(lines?.session == "S: 4%")
-        #expect(lines?.weekly == "W: 71%")
+        #expect(lines?.session == "S:4%")
+        #expect(lines?.weekly == "W:71%")
     }
 
     @Test

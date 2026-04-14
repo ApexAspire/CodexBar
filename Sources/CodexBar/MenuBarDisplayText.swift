@@ -28,8 +28,8 @@ enum MenuBarDisplayText {
             return nil
         }
         return (
-            session: "S: \(session.map { "\($0)%" } ?? "--")",
-            weekly: "W: \(weekly.map { "\($0)%" } ?? "--")")
+            session: "S:\(session.map { "\($0)%" } ?? "--")",
+            weekly: "W:\(weekly.map { "\($0)%" } ?? "--")")
     }
 
     static func paceText(pace: UsagePace?) -> String? {
