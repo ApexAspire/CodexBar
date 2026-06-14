@@ -319,6 +319,7 @@ extension StatusItemController {
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
             let displayText = self.menuBarDisplayText(for: primaryProvider, snapshot: snapshot)
+            let stackedLines = self.menuBarStackedTextLines(for: primaryProvider, snapshot: snapshot)
             let signature = [
                 "mode=brandPercent",
                 "provider=\(primaryProvider.rawValue)",
@@ -330,6 +331,10 @@ extension StatusItemController {
                 "status=\(statusIndicator.rawValue)",
                 "text=\(displayText ?? "nil")",
                 "warningFlash=\(warningFlash ? "1" : "0")",
+                "stackedSession=\(stackedLines?.session ?? "nil")",
+                "stackedWeekly=\(stackedLines?.weekly ?? "nil")",
+                "stackedSessionSev=\(stackedLines?.sessionSeverity.debugLabel ?? "nil")",
+                "stackedWeeklySev=\(stackedLines?.weeklySeverity.debugLabel ?? "nil")",
                 "anim=\(needsAnimation ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
@@ -339,6 +344,23 @@ extension StatusItemController {
                 self.noteIconPerfRender(skipped: true)
                 return true
             }
+            if self.settings.menuBarDisplayMode == .stackedText,
+               let stackedLines
+            {
+                self.setButtonTitle(nil, for: button)
+                self.setButtonImage(nil, for: button)
+                self.installStackedTextView(
+                    on: self.statusItem,
+                    content: StackedTextStatusView.Content(
+                        provider: primaryProvider,
+                        sessionText: stackedLines.session,
+                        weeklyText: stackedLines.weekly,
+                        sessionSeverity: stackedLines.sessionSeverity,
+                        weeklySeverity: stackedLines.weeklySeverity))
+                self.noteIconPerfRender(skipped: false)
+                return false
+            }
+            self.removeStackedTextView(from: self.statusItem)
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
             self.setButtonTitle(displayText, for: button)
@@ -347,6 +369,7 @@ extension StatusItemController {
         }
 
         self.setButtonTitle(nil, for: button)
+        self.removeStackedTextView(from: self.statusItem)
         if let morphProgress {
             let signature = [
                 "mode=morph",
@@ -466,6 +489,25 @@ extension StatusItemController {
                 self.noteIconPerfRender(skipped: true)
                 return true
             }
+            if self.settings.menuBarDisplayMode == .stackedText,
+               let stackedLines = self.menuBarStackedTextLines(for: provider, snapshot: snapshot)
+            {
+                self.setButtonTitle(nil, for: button)
+                self.setButtonImage(nil, for: button)
+                self.installStackedTextView(
+                    on: self.statusItems[provider] ?? self.statusItem,
+                    content: StackedTextStatusView.Content(
+                        provider: provider,
+                        sessionText: stackedLines.session,
+                        weeklyText: stackedLines.weekly,
+                        sessionSeverity: stackedLines.sessionSeverity,
+                        weeklySeverity: stackedLines.weeklySeverity))
+                self.noteIconPerfRender(skipped: false)
+                return false
+            }
+            if let item = self.statusItems[provider] {
+                self.removeStackedTextView(from: item)
+            }
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
             self.setButtonTitle(displayText, for: button)
@@ -553,6 +595,9 @@ extension StatusItemController {
                 self.noteIconPerfRender(skipped: true)
                 return true
             }
+            if let item = self.statusItems[provider] {
+                self.removeStackedTextView(from: item)
+            }
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
@@ -576,6 +621,10 @@ extension StatusItemController {
                 self.noteIconPerfRender(skipped: true)
                 return true
             }
+            if let item = self.statusItems[provider] {
+                self.removeStackedTextView(from: item)
+            }
+            self.setButtonTitle(nil, for: button)
             let image = IconRenderer.makeIcon(
                 primaryRemaining: primary,
                 weeklyRemaining: weekly,
@@ -671,7 +720,7 @@ extension StatusItemController {
         return image
     }
 
-    private func setButtonImage(_ image: NSImage, for button: NSStatusBarButton) {
+    private func setButtonImage(_ image: NSImage?, for button: NSStatusBarButton) {
         if button.image === image { return }
         button.image = image
     }
@@ -750,7 +799,7 @@ extension StatusItemController {
             now: now)
         let pace: UsagePace?
         switch mode {
-        case .percent:
+        case .percent, .stackedText:
             pace = nil
         case .pace, .both:
             let paceWindow: RateWindow? = if let codexProjection {
@@ -971,6 +1020,56 @@ extension StatusItemController {
                 in: .whitespacesAndNewlines)
         }
         return value.isEmpty ? nil : value
+    }
+
+    func menuBarStackedTextLines(
+        for provider: UsageProvider,
+        snapshot: UsageSnapshot?)
+        -> StackedTextLines?
+    {
+        let style = self.store.style(for: provider)
+        let windows = snapshot.map {
+            IconRemainingResolver.resolvedWindows(snapshot: $0, style: style)
+        }
+        return MenuBarDisplayText.stackedPercentLines(
+            sessionWindow: windows?.primary,
+            weeklyWindow: windows?.secondary,
+            showUsed: self.settings.usageBarsShowUsed)
+    }
+
+    private func installStackedTextView(
+        on statusItem: NSStatusItem,
+        content: StackedTextStatusView.Content)
+    {
+        guard let button = statusItem.button else { return }
+        let key = ObjectIdentifier(button)
+        let view: StackedTextStatusView
+        if let existing = self.stackedTextViews[key] {
+            view = existing
+        } else {
+            view = StackedTextStatusView()
+            button.addSubview(view)
+            self.stackedTextViews[key] = view
+        }
+        view.update(with: content)
+        let size = view.intrinsicContentSize
+        view.frame = NSRect(
+            x: 0,
+            y: floor((button.bounds.height - size.height) / 2),
+            width: size.width,
+            height: size.height)
+        statusItem.length = size.width
+        button.needsLayout = true
+        button.needsDisplay = true
+    }
+
+    func removeStackedTextView(from statusItem: NSStatusItem) {
+        guard let button = statusItem.button else { return }
+        let key = ObjectIdentifier(button)
+        guard let view = self.stackedTextViews.removeValue(forKey: key) else { return }
+        view.removeFromSuperview()
+        statusItem.length = NSStatusItem.variableLength
+        button.needsDisplay = true
     }
 
     private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?)

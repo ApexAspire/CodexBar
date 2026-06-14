@@ -204,6 +204,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var tiltAmounts: [UsageProvider: CGFloat] = [:]
     var quotaWarningFlashUntil: [UsageProvider: Date] = [:]
     var quotaWarningFlashTasks: [UsageProvider: Task<Void, Never>] = [:]
+    var stackedTextViews: [ObjectIdentifier: StackedTextStatusView] = [:]
     var blinkForceUntil: Date?
     var loginPhase: LoginPhase = .idle {
         didSet {
@@ -751,6 +752,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.attachMenus()
         } else {
             self.statusItem.isVisible = false
+            self.removeStackedTextView(from: self.statusItem)
             let fallback = self.fallbackProvider
             for provider in self.settings.orderedProviders() {
                 let isEnabled = self.isEnabled(provider)
@@ -865,6 +867,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
 
         guard let item = self.statusItems.removeValue(forKey: provider) else { return }
+        self.removeStackedTextView(from: item)
         item.menu = nil
         self.lastAppliedProviderIconRenderSignatures.removeValue(forKey: provider)
         self.statusBar.removeStatusItem(item)

@@ -1199,4 +1199,70 @@ struct StatusItemAnimationTests {
         #expect(baselineAlpha < 0.01)
         #expect(outputAlpha > 0.01)
     }
+
+    @Test
+    func `menu bar stacked text formats session and weekly percentages`() {
+        let lines = MenuBarDisplayText.stackedPercentLines(
+            sessionWindow: RateWindow(usedPercent: 96, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            weeklyWindow: RateWindow(usedPercent: 29, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            showUsed: false)
+
+        #expect(lines?.session == "S:4%")
+        #expect(lines?.weekly == "W:71%")
+        #expect(lines?.sessionSeverity == .critical)
+        #expect(lines?.weeklySeverity == .normal)
+    }
+
+    @Test
+    func `merged brand icon stacked text mode installs a stacked text view`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-stacked-text"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarDisplayMode = .stackedText
+        settings.usageBarsShowUsed = false
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 96, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 29, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        _ = controller.applyIcon(phase: nil)
+
+        let button = controller.statusItem.button
+        #expect(button?.title.isEmpty == true)
+        #expect(button?.imagePosition == .imageOnly)
+        #expect(button?.image == nil)
+        let stackedView = button.flatMap { controller.stackedTextViews[ObjectIdentifier($0)] }
+        #expect(stackedView != nil)
+        #expect(stackedView?.content == StackedTextStatusView.Content(
+            provider: .codex,
+            sessionText: "S:4%",
+            weeklyText: "W:71%",
+            sessionSeverity: .critical,
+            weeklySeverity: .normal))
+    }
 }
