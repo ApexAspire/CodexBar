@@ -32,6 +32,7 @@
 - z.ai: fix menu bar selection when both weekly and 5-hour quotas are present (#662).
 - Menu bar: avoid redundant merged-icon redraws and make hosted chart submenus load lazily without losing provider context (#708).
 - Codex: add an OpenAI web battery-saver toggle, keep manual refresh available when battery saver is on, and hide OpenAI web submenus when web extras are disabled.
+- Memory: fix a slow leak that grew resident memory into the gigabytes over days/weeks of uptime — menu card and chart sizing now measure the hosting view that is actually kept instead of allocating a throwaway `NSHostingController` per measurement, whose SwiftUI graph was not released and accumulated on every menu open and background-refresh rebuild.
 
 ### Development & Tooling
 - Diagnostics: add lightweight battery instrumentation for menu updates and refresh work (#708).

@@ -76,10 +76,13 @@ extension StatusItemController {
         }
 
         let chartView = UsageBreakdownChartMenuView(breakdown: breakdown, width: width)
+        // Size the hosting view we keep instead of allocating a throwaway NSHostingController
+        // for measurement — that controller's SwiftUI graph is not released promptly on macOS
+        // and leaked on every menu rebuild.
         let hosting = MenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        let height = hosting.fittingSize.height
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting
@@ -104,9 +107,9 @@ extension StatusItemController {
 
         let chartView = CreditsHistoryChartMenuView(breakdown: breakdown, width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        let height = hosting.fittingSize.height
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting
@@ -139,9 +142,9 @@ extension StatusItemController {
             totalCostUSD: tokenSnapshot.last30DaysCostUSD,
             width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        let height = hosting.fittingSize.height
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting

@@ -127,9 +127,15 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
     }
 
     func measuredHeight(width: CGFloat) -> CGFloat {
-        let controller = NSHostingController(rootView: self.rootView)
-        let measured = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        return measured.height
+        // Measure this hosting view directly. This previously allocated a throwaway
+        // NSHostingController per call solely to read its size. On macOS that controller's
+        // SwiftUI hosting graph is not released promptly, so every menu (re)build stranded a
+        // graph. Menus rebuild on each open and on every background/Codex-poll refresh while a
+        // menu is open, so the leak accumulated into multi-gigabyte RSS growth over days/weeks.
+        if abs(self.frame.width - width) > 0.5 {
+            self.frame.size.width = width
+        }
+        return self.fittingSize.height
     }
 
     func setHighlighted(_ highlighted: Bool) {
