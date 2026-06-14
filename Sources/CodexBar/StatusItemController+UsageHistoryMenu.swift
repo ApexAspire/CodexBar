@@ -64,6 +64,7 @@ extension StatusItemController {
         // and leaked on every menu rebuild.
         let hosting = UsageHistoryMenuHostingView(rootView: chartView)
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        hosting.layoutSubtreeIfNeeded()
         let height = hosting.fittingSize.height
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
 

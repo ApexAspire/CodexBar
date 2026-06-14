@@ -81,6 +81,7 @@ extension StatusItemController {
         // and leaked on every menu rebuild.
         let hosting = MenuHostingView(rootView: chartView)
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        hosting.layoutSubtreeIfNeeded()
         let height = hosting.fittingSize.height
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
 
@@ -108,6 +109,7 @@ extension StatusItemController {
         let chartView = CreditsHistoryChartMenuView(breakdown: breakdown, width: width)
         let hosting = MenuHostingView(rootView: chartView)
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        hosting.layoutSubtreeIfNeeded()
         let height = hosting.fittingSize.height
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
 
@@ -143,6 +145,7 @@ extension StatusItemController {
             width: width)
         let hosting = MenuHostingView(rootView: chartView)
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        hosting.layoutSubtreeIfNeeded()
         let height = hosting.fittingSize.height
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
 

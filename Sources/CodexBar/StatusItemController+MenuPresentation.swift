@@ -132,9 +132,9 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         // SwiftUI hosting graph is not released promptly, so every menu (re)build stranded a
         // graph. Menus rebuild on each open and on every background/Codex-poll refresh while a
         // menu is open, so the leak accumulated into multi-gigabyte RSS growth over days/weeks.
-        if abs(self.frame.width - width) > 0.5 {
-            self.frame.size.width = width
-        }
+        // Force layout at the target width first so re-measures don't read a stale fittingSize.
+        self.frame = NSRect(origin: self.frame.origin, size: NSSize(width: width, height: 1))
+        self.layoutSubtreeIfNeeded()
         return self.fittingSize.height
     }
 
