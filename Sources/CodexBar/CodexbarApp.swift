@@ -397,6 +397,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // Menu-bar-only app: re-launching it (Finder double-click, `open`, Dock) opens Settings,
+        // so the app stays reachable even when the status item is hidden — e.g. parked off-screen
+        // by a menu-bar manager like Bartender. Without this, a hidden icon means no way in at all.
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.post(name: .codexbarOpenSettings, object: nil)
+        return true
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         self.statusController?.prepareForAppShutdown()
         self.confettiOverlayController.dismiss()
