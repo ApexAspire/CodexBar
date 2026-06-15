@@ -413,7 +413,14 @@ install_binary "CodexBar" "$APP/Contents/MacOS/CodexBar"
 install_binary "CodexBarCLI" "$APP/Contents/Helpers/CodexBarCLI"
 # Watchdog helper: ensures `claude` probes die when CodexBar crashes/gets killed.
 install_binary "CodexBarClaudeWatchdog" "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
-install_widget_extension
+# CODEXBAR_SKIP_WIDGET=1 skips the WidgetKit extension, which requires full Xcode
+# (xcodebuild). Lets the menu-bar app be packaged on Command Line Tools only; the
+# downstream widget codesign step is already guarded by the .appex existing.
+if [[ "${CODEXBAR_SKIP_WIDGET:-0}" == "1" ]]; then
+  echo "CODEXBAR_SKIP_WIDGET=1 — skipping widget extension (no Xcode required)." >&2
+else
+  install_widget_extension
+fi
 
 swiftpm_bin_path "${ARCH_LIST[0]}" PREFERRED_BUILD_DIR
 
