@@ -68,26 +68,8 @@ enum IconRenderer {
 
     private static let iconCacheStore = IconCacheStore()
     private static let iconCacheLimit = 64
-    private static let stackedTextCacheStore = StackedTextCacheStore()
     private static let morphBucketCount = 200
     private static let morphCache = MorphCache(limit: 512)
-
-    private final class StackedTextCacheStore: @unchecked Sendable {
-        private var cache: [String: NSImage] = [:]
-        private let lock = NSLock()
-
-        func image(for key: String) -> NSImage? {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            return self.cache[key]
-        }
-
-        func set(_ image: NSImage, for key: String) {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            self.cache[key] = image
-        }
-    }
 
     private final class MorphCache: @unchecked Sendable {
         private let cache = NSCache<NSNumber, NSImage>()
@@ -124,67 +106,6 @@ enum IconRenderer {
         }
 
         private static let grid = IconRenderer.grid
-    }
-
-    static func makeStackedTextImage(
-        provider: UsageProvider,
-        sessionText: String,
-        weeklyText: String) -> NSImage?
-    {
-        let cacheKey = "\(provider.rawValue)|\(sessionText)|\(weeklyText)"
-        if let cached = self.stackedTextCacheStore.image(for: cacheKey) {
-            return cached
-        }
-
-        guard let brand = ProviderBrandIcon.image(for: provider) else {
-            return nil
-        }
-
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .left
-        paragraph.lineBreakMode = .byClipping
-        paragraph.minimumLineHeight = 8
-        paragraph.maximumLineHeight = 8
-
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(ofSize: 9, weight: .medium),
-            .foregroundColor: NSColor.labelColor,
-            .paragraphStyle: paragraph,
-        ]
-        let session = NSAttributedString(string: sessionText, attributes: attributes)
-        let weekly = NSAttributedString(string: weeklyText, attributes: attributes)
-        let textWidth = ceil(max(session.size().width, weekly.size().width))
-        let gap: CGFloat = 3
-        let imageSize = NSSize(width: brand.size.width + gap + textWidth, height: Self.baseSize.height)
-
-        let image = NSImage(size: imageSize)
-        image.lockFocus()
-
-        let brandOrigin = NSPoint(x: 0, y: floor((imageSize.height - brand.size.height) / 2))
-        brand.draw(
-            at: brandOrigin,
-            from: NSRect(origin: .zero, size: brand.size),
-            operation: .sourceOver,
-            fraction: 1.0)
-
-        let textX = brand.size.width + gap
-        session.draw(
-            in: NSRect(
-                x: textX,
-                y: 9,
-                width: textWidth,
-                height: 8))
-        weekly.draw(
-            in: NSRect(
-                x: textX,
-                y: 1,
-                width: textWidth,
-                height: 8))
-
-        image.unlockFocus()
-        image.isTemplate = true
-        self.stackedTextCacheStore.set(image, for: cacheKey)
-        return image
     }
 
     // swiftlint:disable function_body_length
