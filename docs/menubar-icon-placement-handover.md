@@ -76,10 +76,17 @@ On the headless/Jump Tahoe Mini the items can't get a slot initially → this co
 
 ## State changes made this session (to RESTORE or DECIDE on)
 
-**Code edits (in working tree — user plans to reset; keep or revert deliberately):**
-- `Sources/CodexBar/StackedTextStatusView.swift` — TAMIC fix (real latent bug, unrelated to this issue).
-- `Sources/CodexBar/StatusItemController+Animation.swift` — thickness-guarded centering in `installStackedTextView` (same).
-- `Sources/CodexBar/StatusItemController.swift` — **DISABLED 4 placement-subsystem call sites** (preflight, defaults-repair, startup visibility check, screen-parameters observer), each marked `// DISABLED (Tahoe recovery regression)`.
+**Failed-fix Swift changes — UNCOMMITTED, being reverted.** None of this is committed and **none of it fixed the bug** (items stayed at the sentinel). The handover commit `1e5506f1` is the only durable artifact. Revert with **`git restore <file>`** (NOT `git reset --hard` — that would also drop the handover commit). `git status` showed 6 modified Swift files; most of the line-count is cosmetic `swiftformat`/`swiftlint --fix` churn that ran tree-wide during the builds, NOT logic:
+
+- `Sources/CodexBar/StatusItemController.swift` — **THE actual fix attempt** (+ formatter churn): disabled the 4 Tahoe placement-recovery entry points. This is the build to reproduce for **Next-Step #1 (reboot)**. Re-apply recipe (each was marked `// DISABLED (Tahoe recovery regression)`):
+  1. `makeStatusItem` (~L280): comment out the `MenuBarStatusItemPlacementPreflight.prepare(...)` call.
+  2. `init` (~L402): replace `let repairedStatusItemVisibilityKeys = MenuBarStatusItemDefaultsRepair.repairHiddenVisibilityDefaultsIfNeeded(defaults: settings.userDefaults)` with `let repairedStatusItemVisibilityKeys: [String] = []`.
+  3. `init` (~L425): comment out `self.scheduleStartupStatusItemVisibilityCheck()`.
+  4. `init` (~L448): comment out the `NotificationCenter.default.addObserver(... #selector(self.handleScreenParametersDidChange(_:)) ... NSApplication.didChangeScreenParametersNotification ...)` block.
+  **Outcome: items still at sentinel** — disabling the churn alone did NOT place them (the corruption may be persistent → reboot is the test). ⚠️ This is NOT a full subsystem revert: commit `e6d61a8d` also changed item-creation in `StatusItemController` (~35 lines beyond these call sites); a true legacy revert must undo all 4 commits (`6665d028`, `e6d61a8d`, `8545c76d`, `55c0a105`).
+- `Sources/CodexBar/StackedTextStatusView.swift` — Auto-Layout/TAMIC fix (real latent bug but **unrelated** — disproven theory #1) + formatter churn.
+- `Sources/CodexBar/StatusItemController+Animation.swift` — thickness-guarded centering in `installStackedTextView` (unrelated, same as above) + formatter churn.
+- `Sources/CodexBar/MenuBarVisibilityWatcher.swift`, `Tests/CodexBarTests/MenuBarVisibilityWatcherTests.swift`, `Tests/CodexBarTests/StatusItemAnimationTests.swift` — **formatter churn ONLY** (not hand-edited). Safe to discard.
 
 **System / defaults:**
 - Bartender 6: **quit** (left off to avoid confounds — restart when done). uBar: relaunched.
