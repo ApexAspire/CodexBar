@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct HiddenWindowView: View {
@@ -8,7 +9,28 @@ struct HiddenWindowView: View {
             .frame(width: 20, height: 20)
             .onReceive(NotificationCenter.default.publisher(for: .codexbarOpenSettings)) { _ in
                 Task { @MainActor in
+                    // LSUIElement apps can't front the Settings window in .accessory; switch to .regular
+                    // and activate, then open via the SwiftUI openSettings() environment action — the
+                    // same path the app menu's "Settings…" uses (which works). The showSettingsWindow:
+                    // selector reports handled=true but never creates the window, so it must not be used.
+                    NSApp.setActivationPolicy(.regular)
+                    NSApp.activate(ignoringOtherApps: true)
                     self.openSettings()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { note in
+                // When the Settings window closes, return to menu-bar-only (.accessory) so the app stops
+                // showing in the Dock — unless another real window is still open.
+                guard let closing = note.object as? NSWindow else { return }
+                DispatchQueue.main.async {
+                    let hasUserWindow = NSApp.windows.contains { window in
+                        window !== closing && window.isVisible && window.canBecomeKey
+                            && window.title != "CodexBarLifecycleKeepalive"
+                            && !window.title.hasPrefix("codexbar-")
+                    }
+                    if !hasUserWindow {
+                        NSApp.setActivationPolicy(.accessory)
+                    }
                 }
             }
             .task {

@@ -219,6 +219,7 @@ struct MenuBarVisibilityWatcherTests {
             appLaunchedAt: launchedAt,
             now: launchedAt.addingTimeInterval(2),
             snapshots: [blocked]))
+        #expect(MenuBarVisibilityWatcher.startupRecoveryAction(snapshots: [blocked]) == .recreate)
     }
 
     @Test
@@ -245,10 +246,14 @@ struct MenuBarVisibilityWatcherTests {
             snapshots: [detachedProxy],
             windowSnapshots: [blockedWindow],
             detectTahoeBlockedProxy: true))
+        #expect(MenuBarVisibilityWatcher.startupRecoveryAction(
+            snapshots: [detachedProxy],
+            windowSnapshots: [blockedWindow],
+            detectTahoeBlockedProxy: true) == .recreate)
     }
 
     @Test
-    func `startup recovery ignores detached live item without Tahoe proxy corroboration`() {
+    func `startup recovery refreshes detached live item without Tahoe proxy corroboration`() {
         let launchedAt = Date(timeIntervalSince1970: 1000)
         let managed = StatusItemVisibilitySnapshot(
             isVisible: true,
@@ -258,15 +263,18 @@ struct MenuBarVisibilityWatcherTests {
             isOnCurrentScreen: false,
             buttonWidth: 18)
 
-        #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+        #expect(MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
             appLaunchedAt: launchedAt,
             now: launchedAt.addingTimeInterval(2),
             snapshots: [managed],
             detectTahoeBlockedProxy: true))
+        #expect(MenuBarVisibilityWatcher.startupRecoveryAction(
+            snapshots: [managed],
+            detectTahoeBlockedProxy: true) == .refreshPlacement)
     }
 
     @Test
-    func `startup recovery ignores live item attached to a stale screen`() {
+    func `startup recovery refreshes live item attached to a stale screen`() {
         let launchedAt = Date(timeIntervalSince1970: 1000)
         let managed = StatusItemVisibilitySnapshot(
             isVisible: true,
@@ -276,10 +284,11 @@ struct MenuBarVisibilityWatcherTests {
             isOnCurrentScreen: false,
             buttonWidth: 18)
 
-        #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+        #expect(MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
             appLaunchedAt: launchedAt,
             now: launchedAt.addingTimeInterval(2),
             snapshots: [managed]))
+        #expect(MenuBarVisibilityWatcher.startupRecoveryAction(snapshots: [managed]) == .refreshPlacement)
     }
 
     @Test

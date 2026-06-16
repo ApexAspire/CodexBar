@@ -349,7 +349,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     private func openSettings(tab: PreferencesTab) {
         DispatchQueue.main.async {
             self.preferencesSelection.tab = tab
-            NSApp.activate(ignoringOtherApps: true)
+            // HiddenWindowView opens the SwiftUI Settings scene via the openSettings() environment
+            // action (the same path the app-menu "Settings…" item uses), switching the LSUIElement app
+            // to .regular so the window can come to the front.
             NotificationCenter.default.post(
                 name: .codexbarOpenSettings,
                 object: nil,

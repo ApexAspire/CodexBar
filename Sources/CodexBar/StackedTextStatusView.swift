@@ -23,7 +23,9 @@ final class StackedTextStatusView: NSView {
             }
         }
 
-        override var isFlipped: Bool { true }
+        override var isFlipped: Bool {
+            true
+        }
 
         override var intrinsicContentSize: NSSize {
             let size = self.attributedText.size()
@@ -55,7 +57,9 @@ final class StackedTextStatusView: NSView {
             }
         }
 
-        override var isFlipped: Bool { true }
+        override var isFlipped: Bool {
+            true
+        }
 
         override func draw(_ dirtyRect: NSRect) {
             super.draw(dirtyRect)
@@ -79,6 +83,7 @@ final class StackedTextStatusView: NSView {
     private static let lineHeight: CGFloat = 8
     private static let totalHeight: CGFloat = 18
     private static let dotVerticalNudge: CGFloat = -1
+    private static let font = NSFont.monospacedSystemFont(ofSize: 9, weight: .medium)
 
     private let brandImageView: NSImageView
     private let sessionLabel: TextLineView
@@ -103,7 +108,9 @@ final class StackedTextStatusView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override var isFlipped: Bool { true }
+    override var isFlipped: Bool {
+        true
+    }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
@@ -115,6 +122,60 @@ final class StackedTextStatusView: NSView {
         return NSSize(
             width: Self.brandSize.width + Self.gap + Self.dotDiameter + Self.dotGap + max(sessionWidth, weeklyWidth),
             height: Self.totalHeight)
+    }
+
+    static func renderedImage(for content: Content, appearance: NSAppearance?) -> NSImage {
+        let sessionText = self.attributedText(content.sessionText)
+        let weeklyText = self.attributedText(content.weeklyText)
+        let textWidth = max(sessionText.size().width, weeklyText.size().width).rounded(.up)
+        let size = NSSize(
+            width: self.brandSize.width + self.gap + self.dotDiameter + self.dotGap + textWidth,
+            height: self.totalHeight)
+        let image = NSImage(size: size)
+        image.isTemplate = false
+        image.lockFocus()
+        let draw = {
+            NSColor.clear.setFill()
+            NSRect(origin: .zero, size: size).fill()
+
+            if let brand = ProviderBrandIcon.image(for: content.provider) {
+                let brandY = floor((size.height - self.brandSize.height) / 2)
+                brand.draw(
+                    in: NSRect(origin: NSPoint(x: 0, y: brandY), size: self.brandSize),
+                    from: .zero,
+                    operation: .sourceOver,
+                    fraction: 1)
+            }
+
+            let dotX = self.brandSize.width + self.gap
+            let dotOffsetY = round((self.lineHeight - self.dotDiameter) / 2)
+            // The image context is not flipped (origin bottom-left), so the top line draws at the
+            // higher y. Session is the top line; weekly is the bottom line.
+            self.dotColor(content.weeklySeverity).setFill()
+            NSBezierPath(ovalIn: NSRect(
+                x: dotX,
+                y: 1 + dotOffsetY + self.dotVerticalNudge,
+                width: self.dotDiameter,
+                height: self.dotDiameter)).fill()
+            self.dotColor(content.sessionSeverity).setFill()
+            NSBezierPath(ovalIn: NSRect(
+                x: dotX,
+                y: 9 + dotOffsetY + self.dotVerticalNudge,
+                width: self.dotDiameter,
+                height: self.dotDiameter)).fill()
+
+            let textX = self.brandSize.width + self.gap + self.dotDiameter + self.dotGap
+            let textRect = NSRect(x: textX, y: 0, width: textWidth, height: self.lineHeight)
+            weeklyText.draw(in: textRect)
+            sessionText.draw(in: textRect.offsetBy(dx: 0, dy: 8))
+        }
+        if let appearance {
+            appearance.performAsCurrentDrawingAppearance(draw)
+        } else {
+            draw()
+        }
+        image.unlockFocus()
+        return image
     }
 
     override func layout() {
@@ -159,7 +220,13 @@ final class StackedTextStatusView: NSView {
     }
 
     private func setupSubviews() {
-        self.translatesAutoresizingMaskIntoConstraints = false
+        // The view is positioned with an explicit frame (see installStackedTextView), so it must use
+        // the autoresizing path, not Auto Layout. With translatesAutoresizingMaskIntoConstraints=false
+        // and no constraints, the layout engine discards the manual frame and collapses the view to
+        // zero size — the status item then reserves width but renders nothing (the "off-screen"/blank
+        // menu bar item). Flexible top/bottom margins keep it vertically centered if the bar height changes.
+        self.translatesAutoresizingMaskIntoConstraints = true
+        self.autoresizingMask = [.minYMargin, .maxYMargin]
 
         self.brandImageView.imageScaling = .scaleNone
         self.brandImageView.translatesAutoresizingMaskIntoConstraints = true
@@ -176,14 +243,29 @@ final class StackedTextStatusView: NSView {
         self.addSubview(self.weeklyDot)
     }
 
+    private static func attributedText(_ text: String) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .left
+        paragraph.lineBreakMode = .byClipping
+        paragraph.minimumLineHeight = self.lineHeight
+        paragraph.maximumLineHeight = self.lineHeight
+        return NSAttributedString(
+            string: text,
+            attributes: [
+                .font: self.font,
+                .foregroundColor: NSColor.labelColor,
+                .paragraphStyle: paragraph,
+            ])
+    }
+
     private static func dotColor(_ severity: UsageSeverity) -> NSColor {
         switch severity {
         case .normal:
-            return .systemGreen
+            .systemGreen
         case .warning:
-            return .systemOrange
+            .systemOrange
         case .critical:
-            return .systemRed
+            .systemRed
         }
     }
 }

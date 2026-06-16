@@ -478,20 +478,26 @@ extension StatusItemController {
            let brand = ProviderBrandIcon.image(for: provider)
         {
             let displayText = self.menuBarDisplayText(for: provider, snapshot: snapshot)
+            let stackedLines = self.settings.menuBarDisplayMode == .stackedText
+                ? self.menuBarStackedTextLines(for: provider, snapshot: snapshot)
+                : nil
             let signature = [
                 "mode=brandPercent",
                 "provider=\(provider.rawValue)",
                 "style=\(String(describing: style))",
+                "displayMode=\(self.settings.menuBarDisplayMode.rawValue)",
                 "text=\(displayText ?? "nil")",
                 "warningFlash=\(warningFlash ? "1" : "0")",
+                "stackedSession=\(stackedLines?.session ?? "nil")",
+                "stackedWeekly=\(stackedLines?.weekly ?? "nil")",
+                "stackedSessionSev=\(stackedLines?.sessionSeverity.debugLabel ?? "nil")",
+                "stackedWeeklySev=\(stackedLines?.weeklySeverity.debugLabel ?? "nil")",
             ].joined(separator: "|")
             if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
                 self.noteIconPerfRender(skipped: true)
                 return true
             }
-            if self.settings.menuBarDisplayMode == .stackedText,
-               let stackedLines = self.menuBarStackedTextLines(for: provider, snapshot: snapshot)
-            {
+            if self.settings.menuBarDisplayMode == .stackedText, let stackedLines {
                 self.setButtonTitle(nil, for: button)
                 self.setButtonImage(nil, for: button)
                 self.installStackedTextView(
@@ -1043,22 +1049,18 @@ extension StatusItemController {
     {
         guard let button = statusItem.button else { return }
         let key = ObjectIdentifier(button)
-        let view: StackedTextStatusView
-        if let existing = self.stackedTextViews[key] {
-            view = existing
-        } else {
-            view = StackedTextStatusView()
-            button.addSubview(view)
-            self.stackedTextViews[key] = view
+        if let existing = self.stackedTextViews.removeValue(forKey: key) {
+            existing.removeFromSuperview()
         }
-        view.update(with: content)
-        let size = view.intrinsicContentSize
-        view.frame = NSRect(
-            x: 0,
-            y: floor((button.bounds.height - size.height) / 2),
-            width: size.width,
-            height: size.height)
-        statusItem.length = size.width
+        // Resolve the text color against the system appearance (the macOS menu bar always follows it),
+        // not button.effectiveAppearance — which can still report .aqua before the status item has
+        // joined the dark menu bar at launch, baking black text into this non-template image.
+        let image = StackedTextStatusView.renderedImage(
+            for: content,
+            appearance: NSApplication.shared.effectiveAppearance)
+        self.setButtonImage(image, for: button)
+        self.setButtonTitle(nil, for: button)
+        statusItem.length = image.size.width
         button.needsLayout = true
         button.needsDisplay = true
     }

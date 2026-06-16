@@ -104,9 +104,14 @@ struct CodexBarApp: App {
     }
 
     private func openSettings(tab: PreferencesTab) {
+        // Route through the shared notification so HiddenWindowView opens the Settings scene via the
+        // openSettings() environment action (showSettingsWindow:/showPreferencesWindow: report handled
+        // but never create the window for this LSUIElement app).
         self.preferencesSelection.tab = tab
-        NSApp.activate(ignoringOtherApps: true)
-        _ = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        NotificationCenter.default.post(
+            name: .codexbarOpenSettings,
+            object: nil,
+            userInfo: ["tab": tab.rawValue])
     }
 
     private static func applyLanguagePreference(from settings: SettingsStore) {

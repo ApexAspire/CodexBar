@@ -277,10 +277,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         legacyDefaultItemIndex: Int?)
         -> NSStatusItem
     {
-        MenuBarStatusItemPlacementPreflight.prepare(
-            defaults: defaults,
-            autosaveName: identity.autosaveName,
-            legacyDefaultItemIndex: legacyDefaultItemIndex)
+        // DISABLED (Tahoe recovery regression): clearing the saved "Preferred Position" on launch
+        // caused status items to lose their menu-bar slot on macOS 26 headless/remote (Jump Desktop)
+        // setups. Let macOS place items passively, matching the working legacy build.
+        // MenuBarStatusItemPlacementPreflight.prepare(
+        //     defaults: defaults,
+        //     autosaveName: identity.autosaveName,
+        //     legacyDefaultItemIndex: legacyDefaultItemIndex)
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
         item.autosaveName = identity.autosaveName
         if let button = item.button {
@@ -399,8 +402,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
         self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
         self.lastSwitcherUsageBarsShowUsed = settings.usageBarsShowUsed
-        let repairedStatusItemVisibilityKeys = MenuBarStatusItemDefaultsRepair
-            .repairHiddenVisibilityDefaultsIfNeeded(defaults: settings.userDefaults)
+        // DISABLED (Tahoe recovery regression): no rewriting of macOS menu-bar visibility defaults.
+        let repairedStatusItemVisibilityKeys: [String] = []
         self.statusBar = statusBar
         self.statusItem = Self.makeStatusItem(
             statusBar: statusBar,
@@ -422,7 +425,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.updateIcons()
         self.scheduleCodexAccountMenuProjectionRevalidationIfNeeded(
             for: self.store.enabledProvidersForDisplay())
-        self.scheduleStartupStatusItemVisibilityCheck()
+        // DISABLED (Tahoe recovery regression): the startup "blocked" check recreates status items in a
+        // loop on headless/remote Tahoe, which (per its own code comment) corrupts Control Center and
+        // leaves the icons permanently unplaced. Left passive.
+        // self.scheduleStartupStatusItemVisibilityCheck()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(self.handleDebugReplayNotification(_:)),
@@ -445,11 +451,20 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 name: .codexbarProviderConfigDidChange,
                 object: nil)
         }
-        NotificationCenter.default.addObserver(
+        // Stacked-text menu bar images bake their text color at render time, so re-render on a
+        // Light/Dark switch — otherwise stale colors persist until the next content change.
+        DistributedNotificationCenter.default().addObserver(
             self,
-            selector: #selector(self.handleScreenParametersDidChange(_:)),
-            name: NSApplication.didChangeScreenParametersNotification,
+            selector: #selector(self.handleInterfaceThemeChange),
+            name: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
             object: nil)
+        // DISABLED (Tahoe recovery regression): screen-parameter changes also trigger status-item
+        // recreation, repeating the Control-Center-corrupting churn. Left passive.
+        // NotificationCenter.default.addObserver(
+        //     self,
+        //     selector: #selector(self.handleScreenParametersDidChange(_:)),
+        //     name: NSApplication.didChangeScreenParametersNotification,
+        //     object: nil)
     }
 
     convenience init(
@@ -895,6 +910,14 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         return "\(prefix): \(base)"
     }
 
+    @objc private func handleInterfaceThemeChange() {
+        // Invalidate the render-skip caches (their signatures don't include appearance) and re-render
+        // so the baked stacked-text color matches the new Light/Dark appearance immediately.
+        self.lastAppliedMergedIconRenderSignature = nil
+        self.lastAppliedProviderIconRenderSignatures.removeAll()
+        self.updateIcons()
+    }
+
     deinit {
         let animationDriver = self.animationDriver
         Task { @MainActor in
@@ -906,6 +929,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.screenChangeVisibilityTask?.cancel()
         self.pendingScreenChangePreviousCount = nil
         NotificationCenter.default.removeObserver(self)
+        DistributedNotificationCenter.default().removeObserver(self)
     }
 }
 

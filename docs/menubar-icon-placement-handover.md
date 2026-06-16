@@ -1,8 +1,40 @@
 # Menu-bar icons not appearing — investigation handover
 
-**Date:** 2026-06-15
+**Date:** 2026-06-15 (investigation) · **RESOLVED:** 2026-06-16
 **Branch:** `stacked-squash` (fast-forwarded build with stacked-text + upstream memory-leak fix)
-**Status:** UNRESOLVED. Root cause located but not fixed. Many theories disproven — read these first to avoid retreading.
+**Status:** ✅ **RESOLVED.**
+
+> ## Resolution (2026-06-16)
+>
+> **Root cause: the macOS Tahoe per-app menu-bar permission was OFF.** CodexBar was
+> disabled under **System Settings → Control Center / Menu Bar → "Allow CodexBar"**.
+> Re-enabling it placed both items immediately (AX position flipped from the `7,921`
+> sentinel to `…,3`). It was **not** a code bug — every disproven theory below was
+> chasing the wrong layer.
+>
+> **The app had already self-diagnosed this:** `hasShownTahoeAllowListGuidance=1` in
+> defaults was CodexBar correctly concluding macOS was hiding it and trying to show the
+> "enable in System Settings" alert (CONFIRMED fact #4 below) — missed because the Mini
+> was headless. **Lesson:** when an app's own diagnostic flag points at an OS permission,
+> check System Settings FIRST. The calibration (every other app placed fine) correctly
+> localised the fault to CodexBar, but the fault was in CodexBar's OS-level *permission*,
+> not its *code*.
+>
+> The Tahoe "recovery subsystem" (CONFIRMED #5 / mechanism section) was a red herring — it
+> remains disabled in `stacked-squash` but did not cause and was not needed to fix this.
+> The autosaveName theory floated late in the investigation was **never applied** (framed
+> as a hypothesis) and is also not the cause.
+>
+> Three follow-on menu-bar fixes shipped 2026-06-16 once the icons were visible: dark-mode
+> text colour (render against `NSApp.effectiveAppearance` + re-render on theme change),
+> stacked session/weekly line order, and Settings-window-won't-open for the LSUIElement app
+> (`showSettingsWindow:` is a no-op → use the `openSettings()` env action with `.regular`
+> activation, restored to `.accessory` on close).
+
+---
+
+_Original investigation notes below — kept for the diagnostic techniques; the theory table
+is now moot (the cause was the OS permission, not any of these)._
 
 ---
 

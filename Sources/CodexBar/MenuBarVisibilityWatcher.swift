@@ -26,6 +26,12 @@ struct StatusItemVisibilitySnapshot: Equatable {
     }
 }
 
+enum StartupStatusItemRecoveryAction: Equatable {
+    case none
+    case refreshPlacement
+    case recreate
+}
+
 extension StatusItemVisibilitySnapshot: CustomStringConvertible {
     var description: String {
         "visible=\(self.isVisible),button=\(self.hasButton),window=\(self.hasWindow),"
@@ -117,16 +123,30 @@ enum MenuBarVisibilityWatcher {
         detectTahoeBlockedProxy: Bool = false)
         -> Bool
     {
+        self.startupRecoveryAction(
+            snapshots: snapshots,
+            windowSnapshots: windowSnapshots,
+            detectTahoeBlockedProxy: detectTahoeBlockedProxy) != .none
+    }
+
+    static func startupRecoveryAction(
+        snapshots: [StatusItemVisibilitySnapshot],
+        windowSnapshots: [MenuBarStatusItemWindowSnapshot] = [],
+        detectTahoeBlockedProxy: Bool = false)
+        -> StartupStatusItemRecoveryAction
+    {
         if self.hasAnyBlockedVisibleSnapshot(snapshots) {
-            return true
+            return .recreate
         }
-        guard detectTahoeBlockedProxy,
-              self.hasAnyDisplacedVisibleSnapshot(snapshots),
-              windowSnapshots.contains(where: \.isTahoeBlockedProxy)
-        else {
-            return false
+        guard self.hasAnyDisplacedVisibleSnapshot(snapshots) else {
+            return .none
         }
-        return true
+        if detectTahoeBlockedProxy,
+           windowSnapshots.contains(where: \.isTahoeBlockedProxy)
+        {
+            return .recreate
+        }
+        return .refreshPlacement
     }
 
     @MainActor
@@ -150,10 +170,10 @@ enum MenuBarVisibilityWatcher {
         -> Bool
     {
         guard now.timeIntervalSince(appLaunchedAt) <= self.startupFreshnessInterval else { return false }
-        return self.hasAnyStartupRecoveryCandidate(
+        return self.startupRecoveryAction(
             snapshots: snapshots,
             windowSnapshots: windowSnapshots,
-            detectTahoeBlockedProxy: detectTahoeBlockedProxy)
+            detectTahoeBlockedProxy: detectTahoeBlockedProxy) != .none
     }
 
     static func shouldRefreshScreenChangePlacement(
@@ -217,42 +237,50 @@ extension StatusItemController {
     private func checkStartupStatusItemVisibility(appLaunchedAt: Date, now: Date = Date()) {
         let snapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
         let windowSnapshots = self.statusItemWindowSnapshots()
-        guard MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+        let initialAction = self.startupRecoveryAction(
             appLaunchedAt: appLaunchedAt,
             now: now,
             snapshots: snapshots,
-            windowSnapshots: windowSnapshots,
-            detectTahoeBlockedProxy: self.canDetectTahoeBlockedProxy)
-        else {
+            windowSnapshots: windowSnapshots)
+        switch initialAction {
+        case .none:
             return
+        case .refreshPlacement:
+            self.menuLogger.warning(
+                "Status item detached from current menu bar at startup; refreshing placement",
+                metadata: [
+                    "snapshots": snapshots.map(\.description).joined(separator: " | "),
+                    "windows": self.statusItemWindowDiagnosticsDescription(windowSnapshots),
+                ])
+            self.refreshExistingStatusItemsForVisibilityRecovery()
+        case .recreate:
+            self.menuLogger.error(
+                "Status item failed to materialize or remained detached; recreating status items",
+                metadata: [
+                    "snapshots": snapshots.map(\.description).joined(separator: " | "),
+                    "windows": self.statusItemWindowDiagnosticsDescription(windowSnapshots),
+                ])
+            self.recreateStatusItemsForVisibilityRecovery()
         }
-
-        self.menuLogger.error(
-            "Status item failed to materialize or remained detached; recreating status items",
-            metadata: [
-                "snapshots": snapshots.map(\.description).joined(separator: " | "),
-                "windows": self.statusItemWindowDiagnosticsDescription(windowSnapshots),
-            ])
-        self.recreateStatusItemsForVisibilityRecovery()
 
         let recoveredSnapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
         let recoveredWindowSnapshots = self.statusItemWindowSnapshots()
-        guard MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+        let recoveredAction = self.startupRecoveryAction(
             appLaunchedAt: appLaunchedAt,
             now: now,
             snapshots: recoveredSnapshots,
-            windowSnapshots: recoveredWindowSnapshots,
-            detectTahoeBlockedProxy: self.canDetectTahoeBlockedProxy)
-        else {
+            windowSnapshots: recoveredWindowSnapshots)
+        guard recoveredAction != .none else {
             self.menuLogger.info(
-                "Status item materialized after recreation",
+                "Status item materialized after startup recovery",
                 metadata: ["snapshots": recoveredSnapshots.map(\.description).joined(separator: " | ")])
             return
         }
 
         self.menuLogger.error(
-            "Status item still unavailable after recreation",
+            "Status item still unavailable after startup recovery",
             metadata: [
+                "action": "\(recoveredAction)",
                 "snapshots": recoveredSnapshots.map(\.description).joined(separator: " | "),
                 "windows": self.statusItemWindowDiagnosticsDescription(recoveredWindowSnapshots),
             ])
@@ -262,6 +290,22 @@ extension StatusItemController {
             return
         }
         MenuBarVisibilityWatcher.presentGuidance(defaults: self.settings.userDefaults, now: now)
+    }
+
+    private func startupRecoveryAction(
+        appLaunchedAt: Date,
+        now: Date,
+        snapshots: [StatusItemVisibilitySnapshot],
+        windowSnapshots: [MenuBarStatusItemWindowSnapshot])
+        -> StartupStatusItemRecoveryAction
+    {
+        guard now.timeIntervalSince(appLaunchedAt) <= MenuBarVisibilityWatcher.startupFreshnessInterval else {
+            return .none
+        }
+        return MenuBarVisibilityWatcher.startupRecoveryAction(
+            snapshots: snapshots,
+            windowSnapshots: windowSnapshots,
+            detectTahoeBlockedProxy: self.canDetectTahoeBlockedProxy)
     }
 
     @objc func handleScreenParametersDidChange(_: Notification) {
