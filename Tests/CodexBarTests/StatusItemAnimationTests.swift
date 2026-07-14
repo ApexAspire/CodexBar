@@ -1214,6 +1214,32 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `weekly-only codex snapshot keeps weekly usage out of the stacked session line`() {
+        // Weekly-only shape shipped by the ChatGPT usage API for `prolite` plans:
+        // the sole window is the 7-day limit; no session window exists.
+        let weekly = RateWindow(
+            usedPercent: 6,
+            windowMinutes: 10080,
+            resetsAt: nil,
+            resetDescription: nil)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: weekly,
+            updatedAt: Date())
+
+        let windows = IconRemainingResolver.resolvedStackedWindows(snapshot: snapshot, style: .codex)
+        #expect(windows.session == nil)
+        #expect(windows.weekly?.usedPercent == 6)
+
+        let lines = MenuBarDisplayText.stackedPercentLines(
+            sessionWindow: windows.session,
+            weeklyWindow: windows.weekly,
+            showUsed: true)
+        #expect(lines?.session == "S:--")
+        #expect(lines?.weekly == "W:6%")
+    }
+
+    @Test
     func `merged brand icon stacked text mode installs a rendered stacked image`() throws {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-stacked-text"),

@@ -67,6 +67,24 @@ enum IconRemainingResolver {
             secondary: snapshot.secondary)
     }
 
+    /// Lane-aware resolution for surfaces that label the two slots (e.g. the stacked "S:"/"W:" text).
+    /// Positional `resolvedWindows` would surface a weekly-only Codex payload in the session slot,
+    /// so Codex resolves through the projection's semantic lanes instead.
+    static func resolvedStackedWindows(
+        snapshot: UsageSnapshot,
+        style: IconStyle)
+        -> (session: RateWindow?, weekly: RateWindow?)
+    {
+        if style == .codex {
+            let projection = self.codexProjection(snapshot: snapshot)
+            return (
+                session: projection.rateWindow(for: .session),
+                weekly: projection.rateWindow(for: .weekly))
+        }
+        let windows = self.resolvedWindows(snapshot: snapshot, style: style)
+        return (session: windows.primary, weekly: windows.secondary)
+    }
+
     static func resolvedRemaining(
         snapshot: UsageSnapshot,
         style: IconStyle,

@@ -1035,11 +1035,11 @@ extension StatusItemController {
     {
         let style = self.store.style(for: provider)
         let windows = snapshot.map {
-            IconRemainingResolver.resolvedWindows(snapshot: $0, style: style)
+            IconRemainingResolver.resolvedStackedWindows(snapshot: $0, style: style)
         }
         return MenuBarDisplayText.stackedPercentLines(
-            sessionWindow: windows?.primary,
-            weeklyWindow: windows?.secondary,
+            sessionWindow: windows?.session,
+            weeklyWindow: windows?.weekly,
             showUsed: self.settings.usageBarsShowUsed)
     }
 
