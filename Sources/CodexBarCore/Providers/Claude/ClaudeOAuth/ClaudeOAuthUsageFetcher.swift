@@ -146,6 +146,7 @@ struct OAuthUsageResponse: Decodable {
     let sevenDaySonnet: OAuthUsageWindow?
     let sevenDayRoutines: OAuthUsageWindow?
     let sevenDayRoutinesSourceKey: String?
+    let limits: [OAuthUsageLimit]
     let iguanaNecktie: OAuthUsageWindow?
     let extraUsage: OAuthExtraUsage?
 
@@ -167,6 +168,7 @@ struct OAuthUsageResponse: Decodable {
         ])
         self.sevenDayRoutines = routines.window
         self.sevenDayRoutinesSourceKey = routines.sourceKey
+        self.limits = Self.decodeValue(in: container, keys: ["limits"]) ?? []
         self.iguanaNecktie = Self.decodeWindow(in: container, keys: ["iguana_necktie"])
         self.extraUsage = Self.decodeValue(in: container, keys: ["extra_usage"])
     }
@@ -231,6 +233,34 @@ struct OAuthUsageWindow: Decodable {
     enum CodingKeys: String, CodingKey {
         case utilization
         case resetsAt = "resets_at"
+    }
+}
+
+struct OAuthUsageLimit: Decodable {
+    let kind: String?
+    let percent: Double?
+    let resetsAt: String?
+    let scope: OAuthUsageLimitScope?
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case percent
+        case resetsAt = "resets_at"
+        case scope
+    }
+}
+
+struct OAuthUsageLimitScope: Decodable {
+    let model: OAuthUsageLimitModel?
+}
+
+struct OAuthUsageLimitModel: Decodable {
+    let id: String?
+    let displayName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
     }
 }
 

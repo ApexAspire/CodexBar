@@ -140,11 +140,17 @@ final class StackedTextStatusView: NSView {
 
             if let brand = ProviderBrandIcon.image(for: content.provider) {
                 let brandY = floor((size.height - self.brandSize.height) / 2)
+                let brandRect = NSRect(origin: NSPoint(x: 0, y: brandY), size: self.brandSize)
                 brand.draw(
-                    in: NSRect(origin: NSPoint(x: 0, y: brandY), size: self.brandSize),
+                    in: brandRect,
                     from: .zero,
                     operation: .sourceOver,
                     fraction: 1)
+                // Template tinting is only applied by controls such as NSImageView. This brand is
+                // drawn into a non-template composite so the colored severity dots survive; tint its
+                // alpha mask explicitly using the same appearance-aware color as the stacked text.
+                NSColor.labelColor.setFill()
+                brandRect.fill(using: .sourceAtop)
             }
 
             let dotX = self.brandSize.width + self.gap

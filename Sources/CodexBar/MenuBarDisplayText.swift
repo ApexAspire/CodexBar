@@ -27,11 +27,11 @@ enum UsageSeverity: Equatable {
     var debugLabel: String {
         switch self {
         case .normal:
-            return "ok"
+            "ok"
         case .warning:
-            return "warn"
+            "warn"
         case .critical:
-            return "crit"
+            "crit"
         }
     }
 }

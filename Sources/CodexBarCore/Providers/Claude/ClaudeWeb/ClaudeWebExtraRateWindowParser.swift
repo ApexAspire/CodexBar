@@ -46,7 +46,37 @@ enum ClaudeWebExtraRateWindowParser {
                 sourceKeys[definition.id] = key
             }
         }
+        if let fable = Self.fableWeeklyWindow(from: json) {
+            windows.append(Self.namedWindow(
+                id: "claude-fable",
+                title: fable.title,
+                usedPercent: fable.usedPercent,
+                resetsAt: fable.resetsAt))
+            sourceKeys["claude-fable"] = "limits.weekly_scoped"
+        }
         return (windows, sourceKeys)
+    }
+
+    private static func fableWeeklyWindow(
+        from json: [String: Any]) -> (title: String, usedPercent: Double, resetsAt: Date?)?
+    {
+        guard let limits = json["limits"] as? [[String: Any]] else { return nil }
+        for limit in limits {
+            guard let kind = limit["kind"] as? String,
+                  kind.caseInsensitiveCompare("weekly_scoped") == .orderedSame,
+                  let scope = limit["scope"] as? [String: Any],
+                  let model = scope["model"] as? [String: Any],
+                  let rawTitle = model["display_name"] as? String,
+                  rawTitle.localizedCaseInsensitiveContains("fable"),
+                  let usedPercent = Self.percentValue(from: limit["percent"])
+            else { continue }
+
+            let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else { continue }
+            let resetsAt = (limit["resets_at"] as? String).flatMap(Self.parseISO8601Date)
+            return (title: title, usedPercent: usedPercent, resetsAt: resetsAt)
+        }
+        return nil
     }
 
     private static func namedWindow(

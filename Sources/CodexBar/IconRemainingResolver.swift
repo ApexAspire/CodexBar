@@ -81,6 +81,11 @@ enum IconRemainingResolver {
                 session: projection.rateWindow(for: .session),
                 weekly: projection.rateWindow(for: .weekly))
         }
+        // Kimi keeps its dropdown order as primary=weekly and secondary=5-hour rate limit.
+        // The stacked status item labels semantic lanes, so map those positions explicitly.
+        if style == .kimi {
+            return (session: snapshot.secondary, weekly: snapshot.primary)
+        }
         let windows = self.resolvedWindows(snapshot: snapshot, style: style)
         return (session: windows.primary, weekly: windows.secondary)
     }

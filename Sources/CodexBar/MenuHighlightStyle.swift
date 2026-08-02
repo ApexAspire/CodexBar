@@ -1,5 +1,7 @@
 import SwiftUI
 
+// Keep the manually expanded EnvironmentKey implementation for Command Line Tools builds.
+// swiftformat:disable environmentEntry,docComments
 private struct MenuItemHighlightedKey: EnvironmentKey {
     static let defaultValue: Bool = false
 }
@@ -54,3 +56,5 @@ enum MenuHighlightStyle {
         highlighted ? Color(nsColor: .selectedContentBackgroundColor) : .clear
     }
 }
+
+// swiftformat:enable environmentEntry,docComments

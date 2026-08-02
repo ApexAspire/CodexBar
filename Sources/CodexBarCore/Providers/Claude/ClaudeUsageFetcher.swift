@@ -1057,7 +1057,7 @@ extension ClaudeUsageFetcher {
         if let routinesKey = usage.sevenDayRoutinesSourceKey {
             Self.log.debug("Claude OAuth extra usage key matched: routines=\(routinesKey)")
         }
-        return definitions.compactMap { definition in
+        var windows: [NamedRateWindow] = definitions.compactMap { definition in
             let utilization: Double
             let resetDate: Date?
             if let window = definition.window, let parsedUtilization = window.utilization {
@@ -1080,6 +1080,34 @@ extension ClaudeUsageFetcher {
                     resetsAt: resetDate,
                     resetDescription: resetDescription))
         }
+        if let fable = Self.oauthFableRateWindow(from: usage) {
+            windows.append(fable)
+            Self.log.debug("Claude OAuth extra usage key matched: fable=limits.weekly_scoped")
+        }
+        return windows
+    }
+
+    private static func oauthFableRateWindow(from usage: OAuthUsageResponse) -> NamedRateWindow? {
+        guard let limit = usage.limits.first(where: { limit in
+            guard limit.kind?.caseInsensitiveCompare("weekly_scoped") == .orderedSame,
+                  let displayName = limit.scope?.model?.displayName
+            else { return false }
+            return displayName.localizedCaseInsensitiveContains("fable")
+        }),
+            let usedPercent = limit.percent,
+            let rawTitle = limit.scope?.model?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !rawTitle.isEmpty
+        else { return nil }
+
+        let resetDate = ClaudeOAuthUsageFetcher.parseISO8601Date(limit.resetsAt)
+        return NamedRateWindow(
+            id: "claude-fable",
+            title: rawTitle,
+            window: RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: Self.weeklyWindowMinutes,
+                resetsAt: resetDate,
+                resetDescription: resetDate.map(Self.formatResetDate)))
     }
 
     // MARK: - Web API path (uses browser cookies)

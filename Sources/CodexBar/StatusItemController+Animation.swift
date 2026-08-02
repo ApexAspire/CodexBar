@@ -232,6 +232,7 @@ extension StatusItemController {
     }
 
     @discardableResult
+    // swiftlint:disable:next function_body_length
     func applyIcon(
         phase: Double?,
         bypassMergedMenuTrackingDeferral: Bool = false) -> Bool
@@ -464,6 +465,7 @@ extension StatusItemController {
     }
 
     @discardableResult
+    // swiftlint:disable:next function_body_length
     func applyIcon(for provider: UsageProvider, phase: Double?) -> Bool {
         guard let button = self.statusItems[provider]?.button else { return false }
         let snapshot = self.store.snapshot(for: provider)

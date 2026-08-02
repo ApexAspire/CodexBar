@@ -9,14 +9,17 @@ Cumulative work log for the personal CodexBar fork. Newest context at the top of
 - Custom feature: stacked-text menu-bar mode showing session + weekly limits as two colored text lines (`S:`/`W:` via `StackedTextStatusView`).
 - Build: Command Line Tools only (no full Xcode). `CODEXBAR_SIGNING=adhoc CODEXBAR_SKIP_WIDGET=1 Scripts/package_app.sh release`, then swap `/Applications/CodexBar.app`.
 
-## 2. Current direction (2026-07-14)
+## 2. Current direction (2026-08-02)
 
-Fork is stable on `stacked-squash` with the weekly-only display fix shipped and installed. OpenAI has (reportedly temporarily) removed session limits for this account's plan (`prolite`) — the app now renders `S:--` / `W:n%` and will self-restore the session line when the API brings the 5h window back. Pending: finalize `stacked-squash` → fork `main` (needs authorised force-push), stable self-signed signing, optional upstream PR for stacked-text.
+Fork remains on `stacked-squash`, which contains current `upstream/main` plus the local stacked-text work. Kimi's dropdown deliberately remains `primary=Weekly` / `secondary=Rate Limit`; the labeled stacked view maps those semantic lanes back to `S=Rate Limit` / `W=Weekly`. Template provider icons drawn into the non-template stacked composite must be explicitly tinted with the appearance-aware label color. Claude's model-scoped Fable quota is decoded from the structured `limits[]` response and rendered only in the dropdown through the existing extra-rate-window path. Pending: finalize `stacked-squash` → fork `main` (needs authorised force-push), stable self-signed signing, optional upstream PR for stacked-text.
 
 ## 3. Decisions and rulings log
 
 | Date | Topic | Decision (source) |
 |------|-------|-------------------|
+| 2026-08-02 | Claude Fable quota | Current `upstream/main` has Fable cost pricing but no Fable quota display. Decode Fable from the OAuth/web `limits[]` model-scoped weekly entry (`kind=weekly_scoped`, `scope.model.display_name`, `percent`, `resets_at`) into `extraRateWindows`; the generic menu-card path then shows it in the dropdown without adding it to the menu bar. (This session.) |
+| 2026-08-02 | Kimi stacked display | Preserve Kimi's dropdown order (`primary=Weekly`, `secondary=Rate Limit`), but swap those positions at the labeled stacked-text boundary so `S` means the 5-hour rate limit and `W` means weekly. Explicitly tint provider template masks inside the non-template stacked composite; `isTemplate` alone only tints when a control renders the image. (This session.) |
+| 2026-08-02 | Fork freshness | `stacked-squash` contains `upstream/main` at `ae7455ba`. Fork `origin/main` is an old divergent line; its memory-leak and fitting-height fixes are already present in current code through upstream equivalents, so do not merge or cherry-pick those six old-line commits. (This session.) |
 | 2026-07-14 | Weekly-only usage display | Labeled surfaces (stacked `S:`/`W:` text) resolve windows by semantic lane, not position; unlabeled icon bars keep positional fill (deliberate UX call — lane-strict would render an empty main bar). (This session, after sibling-grep review.) |
 | 2026-07-14 | Sibling-grep MEDIUM findings | `resolvedWindows`/`resolvedRemaining` positional flattening for unlabeled codex icon bars left as-is pending UX decision; 2 LOW findings (perplexity stacked ordering, positional naming) recorded, not fixed. (This session.) |
 | 2026-07-14 | OAuth token handling | Rotated refresh tokens from diagnostic refreshes must be persisted back to `~/.codex/auth.json`; done with explicit user authorization after classifier block. (This session.) |

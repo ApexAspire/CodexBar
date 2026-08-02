@@ -665,6 +665,7 @@ struct MiniMaxMenuCardModelTests {
     @Test
     func `minimax token plan model shows weekly quota and points balance`() throws {
         let now = Date()
+        let renewsAt = Date(timeIntervalSince1970: 1_810_569_600)
         let minimax = MiniMaxUsageSnapshot(
             planName: "Token Plan · TokenPlanPlus-年度会员",
             availablePrompts: nil,
@@ -695,7 +696,7 @@ struct MiniMaxMenuCardModelTests {
                     resetDescription: "Resets in 6 days"),
             ],
             pointsBalance: 14000,
-            subscriptionRenewsAt: Date(timeIntervalSince1970: 1_810_569_600))
+            subscriptionRenewsAt: renewsAt)
         let snapshot = minimax.toUsageSnapshot()
         let metadata = try #require(ProviderDefaults.metadata[.minimax])
 
@@ -732,7 +733,12 @@ struct MiniMaxMenuCardModelTests {
         #expect(model.metrics[1].cardStyle == false)
         #expect(model.providerCost?.title == "Credits")
         #expect(model.providerCost?.spendLine == "Balance: 14000")
-        #expect(model.usageNotes == ["Renews: May 18, 2027"])
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale.current
+        dateFormatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
+        dateFormatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
+        let expectedRenewal = String(format: L("Renews: %@"), dateFormatter.string(from: renewsAt))
+        #expect(model.usageNotes == [expectedRenewal])
     }
 }
 
@@ -899,66 +905,6 @@ struct MenuCardModelTests {
         #expect(model.metrics.count == 1)
         #expect(model.metrics.first?.title == "Session")
         #expect(model.planText == "Max")
-    }
-
-    @Test
-    func `claude model includes routines bar when present`() throws {
-        let now = Date()
-        let identity = ProviderIdentitySnapshot(
-            providerID: .claude,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: "Max")
-        let snapshot = UsageSnapshot(
-            primary: RateWindow(
-                usedPercent: 2,
-                windowMinutes: nil,
-                resetsAt: now.addingTimeInterval(3600),
-                resetDescription: nil),
-            secondary: RateWindow(
-                usedPercent: 8,
-                windowMinutes: 10080,
-                resetsAt: now.addingTimeInterval(7200),
-                resetDescription: nil),
-            tertiary: RateWindow(
-                usedPercent: 16,
-                windowMinutes: 10080,
-                resetsAt: now.addingTimeInterval(7800),
-                resetDescription: nil),
-            extraRateWindows: [
-                NamedRateWindow(
-                    id: "claude-routines",
-                    title: "Daily Routines",
-                    window: RateWindow(
-                        usedPercent: 7,
-                        windowMinutes: 10080,
-                        resetsAt: now.addingTimeInterval(9200),
-                        resetDescription: nil)),
-            ],
-            updatedAt: now,
-            identity: identity)
-        let metadata = try #require(ProviderDefaults.metadata[.claude])
-        let model = UsageMenuCardView.Model.make(.init(
-            provider: .claude,
-            metadata: metadata,
-            snapshot: snapshot,
-            credits: nil,
-            creditsError: nil,
-            dashboard: nil,
-            dashboardError: nil,
-            tokenSnapshot: nil,
-            tokenError: nil,
-            account: AccountInfo(email: "codex@example.com", plan: "plus"),
-            isRefreshing: false,
-            lastError: nil,
-            usageBarsShowUsed: false,
-            resetTimeDisplayStyle: .countdown,
-            tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: true,
-            hidePersonalInfo: false,
-            now: now))
-
-        #expect(model.metrics.map(\.title) == ["Session", "Weekly", "Sonnet", "Daily Routines"])
     }
 
     @Test

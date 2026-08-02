@@ -518,6 +518,9 @@ public enum ClaudeWebAPIFetcher {
         if let sourceKey = extraRateParse.sourceKeys["claude-routines"] {
             logger?("Usage API extra window key matched: routines=\(sourceKey)")
         }
+        if let sourceKey = extraRateParse.sourceKeys["claude-fable"] {
+            logger?("Usage API extra window key matched: fable=\(sourceKey)")
+        }
         let extraUsageCost = ClaudeWebExtraUsageCost.parse(from: json["extra_usage"])
 
         return WebUsageData(

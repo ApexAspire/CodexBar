@@ -1240,6 +1240,71 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `kimi stacked text maps rate limit to session and weekly quota to weekly`() {
+        let weekly = RateWindow(
+            usedPercent: 25,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: "Weekly quota")
+        let rateLimit = RateWindow(
+            usedPercent: 75,
+            windowMinutes: 300,
+            resetsAt: nil,
+            resetDescription: "5-hour rate limit")
+        let snapshot = UsageSnapshot(
+            primary: weekly,
+            secondary: rateLimit,
+            updatedAt: Date())
+
+        let windows = IconRemainingResolver.resolvedStackedWindows(snapshot: snapshot, style: .kimi)
+        #expect(windows.session?.usedPercent == 75)
+        #expect(windows.weekly?.usedPercent == 25)
+
+        let lines = MenuBarDisplayText.stackedPercentLines(
+            sessionWindow: windows.session,
+            weeklyWindow: windows.weekly,
+            showUsed: true)
+        #expect(lines?.session == "S:75%")
+        #expect(lines?.weekly == "W:25%")
+    }
+
+    @Test
+    func `kimi stacked icon is light in dark appearance`() throws {
+        let appearance = try #require(NSAppearance(named: .darkAqua))
+        let image = StackedTextStatusView.renderedImage(
+            for: StackedTextStatusView.Content(
+                provider: .kimi,
+                sessionText: "S:75%",
+                weeklyText: "W:25%",
+                sessionSeverity: .normal,
+                weeklySeverity: .normal),
+            appearance: appearance)
+        let data = try #require(image.tiffRepresentation)
+        let bitmap = try #require(NSBitmapImageRep(data: data))
+
+        var visiblePixels = 0
+        var brightestComponent: CGFloat = 0
+        for x in 0..<min(16, bitmap.pixelsWide) {
+            for y in 0..<bitmap.pixelsHigh {
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
+                      color.alphaComponent > 0.05
+                else {
+                    continue
+                }
+                visiblePixels += 1
+                brightestComponent = max(
+                    brightestComponent,
+                    color.redComponent,
+                    color.greenComponent,
+                    color.blueComponent)
+            }
+        }
+
+        #expect(visiblePixels > 10)
+        #expect(brightestComponent > 0.8)
+    }
+
+    @Test
     func `merged brand icon stacked text mode installs a rendered stacked image`() throws {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-stacked-text"),
