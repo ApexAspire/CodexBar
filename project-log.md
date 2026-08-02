@@ -7,7 +7,7 @@ Cumulative work log for the personal CodexBar fork. Newest context at the top of
 - Project: CodexBar — macOS menu-bar app showing Codex/Claude/other-provider usage stats.
 - This checkout is a personal customized fork: `origin` = ApexAspire/CodexBar, `upstream` = steipete/CodexBar. Working branch `stacked-squash` (rebased onto upstream 0.35.1).
 - Custom feature: stacked-text menu-bar mode showing session + weekly limits as two colored text lines (`S:`/`W:` via `StackedTextStatusView`).
-- Build: full Xcode app + widget packaging is available locally with `CODEXBAR_SIGNING=adhoc Scripts/package_app.sh release`; `CODEXBAR_SKIP_WIDGET=1` remains the Command Line Tools fallback. Install by replacing `/Applications/CodexBar.app` and launching that exact bundle.
+- Build: full Xcode app + widget packaging is available locally with `CODEXBAR_SIGNING=adhoc Scripts/package_app.sh release`; `CODEXBAR_SKIP_WIDGET=1` remains the Command Line Tools fallback. A cold Xcode widget build can exceed the script's 900-second default while still compiling normally; after confirming active compiler work and no build error, use the supported `CODEXBAR_WIDGET_EXTENSION_TIMEOUT_SECONDS=2400` override. Install by replacing `/Applications/CodexBar.app` and launching that exact bundle.
 
 ## 2. Current direction (2026-08-02)
 
