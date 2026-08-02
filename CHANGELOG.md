@@ -12,6 +12,7 @@
 ### Fixed
 - Antigravity: retry transient `Text file busy` launch failures while the CLI executable is being replaced.
 - Antigravity: fall back to loopback HTTP for local CLI and language-server probes on Linux, where self-signed localhost TLS cannot be trusted (fixes #1508). Thanks @zodiacfireworks!
+- Claude: show the model-scoped Fable weekly quota in the provider dropdown when the structured usage response includes it.
 - Codebuff: enforce the optional subscription grace period even when the transport ignores cancellation.
 - Codex: keep managed login timeouts bounded while preserving captured output when detached helpers retain stdout or stderr.
 - Claude: keep segmented multi-account menus scoped to the selected account while its refresh is in flight (fixes #1527).
@@ -21,6 +22,7 @@
 - Provider probes: stop waiting indefinitely for inherited output pipes after a subprocess exits.
 - Menu bar: update visible usage values in place when a manual refresh completes instead of leaving the open provider card stale until the menu is reopened (fixes #1516).
 - Gemini: recognize the current `gemini-api-key` CLI auth setting so API-key sessions show the supported OAuth guidance instead of a misleading not-logged-in error (fixes #1511).
+- Kimi: keep Weekly above Rate Limit in the dropdown while mapping the stacked menu-bar labels to `S` for the rate limit and `W` for the weekly quota, and tint the Kimi mark correctly in Dark Mode.
 - Xiaomi MiMo: cancel optional token-plan requests when the required balance request fails instead of delaying the error for up to 30 seconds.
 - Settings: make the cost history window directly editable by keyboard while preserving the existing stepper and 1–365 day bounds (fixes #1499). Thanks @kiranmagic7!
 

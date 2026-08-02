@@ -7,7 +7,7 @@ Cumulative work log for the personal CodexBar fork. Newest context at the top of
 - Project: CodexBar — macOS menu-bar app showing Codex/Claude/other-provider usage stats.
 - This checkout is a personal customized fork: `origin` = ApexAspire/CodexBar, `upstream` = steipete/CodexBar. Working branch `stacked-squash` (rebased onto upstream 0.35.1).
 - Custom feature: stacked-text menu-bar mode showing session + weekly limits as two colored text lines (`S:`/`W:` via `StackedTextStatusView`).
-- Build: Command Line Tools only (no full Xcode). `CODEXBAR_SIGNING=adhoc CODEXBAR_SKIP_WIDGET=1 Scripts/package_app.sh release`, then swap `/Applications/CodexBar.app`.
+- Build: full Xcode app + widget packaging is available locally with `CODEXBAR_SIGNING=adhoc Scripts/package_app.sh release`; `CODEXBAR_SKIP_WIDGET=1` remains the Command Line Tools fallback. Install by replacing `/Applications/CodexBar.app` and launching that exact bundle.
 
 ## 2. Current direction (2026-08-02)
 
@@ -28,12 +28,14 @@ Fork remains on `stacked-squash`, which contains current `upstream/main` plus th
 
 ## 4. Deliverables and version history
 
+- 2026-08-02 — `76d66c3e` fix: correct Kimi stacked semantics and Dark Mode mark; decode Claude Fable's scoped weekly limit into the dropdown. Pushed to `origin/stacked-squash`; full app + widget packaged, installed as `/Applications/CodexBar.app`, and verified to record `CodexGitCommit=76d66c3e` with Launch at Login retained.
 - 2026-07-14 — `dcb47cb7` fix: keep weekly-only Codex usage off the stacked session line (lane-aware `IconRemainingResolver.resolvedStackedWindows`; regression test). `59fc41b9` chore: gitignore `.claude/`. Pushed to `origin/stacked-squash`; app rebuilt, installed, visually verified (`S:--` / `W:7%`).
 - 2026-06-16 — `bb3e1cc1` menu-bar dark-mode text colour, stacked line order, Settings-window fixes.
 - 2026-06-15 — `stacked-squash` branch: stacked-text feature squash + CLT build accommodations (`CODEXBAR_SKIP_WIDGET`, @Entry macro expansion) + Settings-on-reopen.
 
 ## 5. Adversarial review corrections
 
+- 2026-08-02 — sibling-grep post-fix sweep: 0 HIGH, 1 MEDIUM (`quotaWarningFlashImage` has the same template-into-composite tint risk outside stacked mode), 1 LOW (other provider-specific stacked labels remain positional UX debt). Both left outside the scoped Kimi fix.
 - 2026-07-14 — sibling-grep post-fix sweep: 0 HIGH, 2 MEDIUM (unlabeled icon bars still positional — deliberate), 2 LOW. Structural note: `codexVisibleWindows()` collapses lane-tagged projection output to an untagged array; candidate refactor to a lane-keyed struct if more labeled consumers appear.
 
 ## 6. Open items
