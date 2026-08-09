@@ -1035,6 +1035,9 @@ extension StatusItemController {
         snapshot: UsageSnapshot?)
         -> StackedTextLines?
     {
+        if provider == .deepseek, let snapshot {
+            return MenuBarDisplayText.deepSeekStackedLines(snapshot: snapshot)
+        }
         let style = self.store.style(for: provider)
         let windows = snapshot.map {
             IconRemainingResolver.resolvedStackedWindows(snapshot: $0, style: style)

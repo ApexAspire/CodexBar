@@ -45,7 +45,21 @@ extension UsageStore {
                 costUSD: entry.costUSD)
         } ?? []
 
-        let tokenUsage = Self.widgetTokenUsageSummary(from: tokenSnapshot, provider: provider)
+        // DeepSeek is pay-as-you-go: surface spend/balance via tokenUsage rather than percent rows.
+        let tokenUsage: WidgetSnapshot.TokenUsageSummary?
+        if provider == .deepseek, let dsUsage = snapshot.deepseekUsage {
+            let currencyCode = dsUsage.balanceCurrency ?? dsUsage.currency
+            tokenUsage = WidgetSnapshot.TokenUsageSummary(
+                sessionCostUSD: dsUsage.todayCost,
+                sessionTokens: dsUsage.todayTokens > 0 ? dsUsage.todayTokens : nil,
+                last30DaysCostUSD: dsUsage.currentMonthCost,
+                last30DaysTokens: dsUsage.currentMonthTokens > 0 ? dsUsage.currentMonthTokens : nil,
+                currencyCode: currencyCode,
+                sessionLabel: "Today",
+                last30DaysLabel: "This month")
+        } else {
+            tokenUsage = Self.widgetTokenUsageSummary(from: tokenSnapshot, provider: provider)
+        }
         let usageRows = self.widgetUsageRows(provider: provider, snapshot: snapshot)
 
         let creditsRemaining: Double?
@@ -114,6 +128,9 @@ extension UsageStore {
         provider: UsageProvider,
         snapshot: UsageSnapshot) -> [WidgetSnapshot.WidgetUsageRowSnapshot]
     {
+        // DeepSeek has no rate windows with meaningful percentages — its data is exposed via
+        // tokenUsage (today's spend, month spend) in the widget snapshot entry.
+        if provider == .deepseek { return [] }
         let metadata = ProviderDefaults.metadata[provider]
         if provider == .codex {
             let projection = self.codexConsumerProjection(

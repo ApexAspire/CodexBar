@@ -1185,6 +1185,9 @@ extension UsageMenuCardView.Model {
         if input.provider == .antigravity {
             return Self.antigravityMetrics(input: input, snapshot: snapshot)
         }
+        if input.provider == .deepseek {
+            return Self.deepSeekMetrics(snapshot: snapshot, input: input)
+        }
         if input.provider == .minimax {
             if let minimaxUsage = snapshot.minimaxUsage {
                 let services = minimaxUsage.orderedQuotaServices

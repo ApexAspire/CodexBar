@@ -38,23 +38,10 @@ struct MenuCardDeepSeekTests {
     }
 
     @Test
-    func `model shows balance as status text instead of percentage detail`() throws {
+    func `model shows spend and balance rows instead of a single percentage metric`() throws {
         let now = Date()
-        let identity = ProviderIdentitySnapshot(
-            providerID: .deepseek,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: nil)
-        let snapshot = UsageSnapshot(
-            primary: RateWindow(
-                usedPercent: 0,
-                windowMinutes: nil,
-                resetsAt: nil,
-                resetDescription: "$9.32 (Paid: $9.32 / Granted: $0.00)"),
-            secondary: nil,
-            tertiary: nil,
-            updatedAt: now,
-            identity: identity)
+        // Use a properly enriched snapshot so balance fields are numeric (not just resetDescription).
+        let snapshot = Self.makeSnapshot(now: now)
         let metadata = try #require(ProviderDefaults.metadata[.deepseek])
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -77,11 +64,21 @@ struct MenuCardDeepSeekTests {
             hidePersonalInfo: false,
             now: now))
 
-        let primary = try #require(model.metrics.first)
-        #expect(primary.title == "Balance")
-        #expect(primary.statusText == "$9.32 (Paid: $9.32 / Granted: $0.00)")
-        #expect(primary.detailText == nil)
-        #expect(primary.resetText == nil)
+        // Card shows: Today spend, This month spend, Balance — no raw percentage metrics.
+        let today = try #require(model.metrics.first { $0.id == "deepseek-today-spend" })
+        #expect(today.title == "Today")
+        #expect(today.statusText == "—") // no usage summary in this snapshot
+        #expect(today.resetText == nil)
+
+        let balance = try #require(model.metrics.first { $0.id == "deepseek-balance" })
+        #expect(balance.title == "Balance")
+        // Balance = $9.32, Paid $9.32, Granted $0.00
+        #expect(balance.statusText == "$9.32")
+        #expect(balance.detailText?.contains("$9.32") == true)
+        #expect(balance.resetText == nil)
+
+        // Verify no raw-percent (usedPercent / remainingPercent) metric is present.
+        #expect(model.metrics.allSatisfy { $0.id != "primary" && $0.id != "secondary" })
     }
 
     @Test

@@ -88,14 +88,50 @@ public struct DeepSeekUsageSnapshot: Sendable {
             resetsAt: nil,
             resetDescription: balanceDetail)
 
+        // Always expose balance in deepseekUsage so the stacked display and dropdown card
+        // can read numeric values rather than parsing the formatted resetDescription string.
+        let enrichedSummary = self.enrichSummaryWithBalance(self.usageSummary)
+
         return UsageSnapshot(
             primary: balanceWindow,
             secondary: nil,
             tertiary: nil,
             providerCost: nil,
-            deepseekUsage: self.usageSummary,
+            deepseekUsage: enrichedSummary,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private func enrichSummaryWithBalance(_ summary: DeepSeekUsageSummary?) -> DeepSeekUsageSummary {
+        let base = summary ?? DeepSeekUsageSummary(
+            todayTokens: 0,
+            currentMonthTokens: 0,
+            todayCost: nil,
+            currentMonthCost: nil,
+            requestCount: 0,
+            currentMonthRequestCount: 0,
+            topModel: nil,
+            categoryBreakdown: [],
+            daily: [],
+            currency: self.currency,
+            updatedAt: self.updatedAt)
+        return DeepSeekUsageSummary(
+            todayTokens: base.todayTokens,
+            currentMonthTokens: base.currentMonthTokens,
+            todayCost: base.todayCost,
+            currentMonthCost: base.currentMonthCost,
+            requestCount: base.requestCount,
+            currentMonthRequestCount: base.currentMonthRequestCount,
+            topModel: base.topModel,
+            categoryBreakdown: base.categoryBreakdown,
+            daily: base.daily,
+            currency: base.currency,
+            updatedAt: base.updatedAt,
+            totalBalance: self.totalBalance,
+            grantedBalance: self.grantedBalance,
+            toppedUpBalance: self.toppedUpBalance,
+            balanceCurrency: self.currency,
+            balanceAvailable: self.isAvailable)
     }
 }
 

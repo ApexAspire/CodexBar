@@ -189,6 +189,12 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
     public let daily: [DeepSeekDailyUsage]
     public let currency: String
     public let updatedAt: Date
+    /// Populated when the snapshot is enriched with balance endpoint data.
+    public let totalBalance: Double?
+    public let grantedBalance: Double?
+    public let toppedUpBalance: Double?
+    public let balanceCurrency: String?
+    public let balanceAvailable: Bool?
 
     public init(
         todayTokens: Int,
@@ -201,7 +207,12 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
         categoryBreakdown: [DeepSeekCategoryBreakdown],
         daily: [DeepSeekDailyUsage],
         currency: String,
-        updatedAt: Date)
+        updatedAt: Date,
+        totalBalance: Double? = nil,
+        grantedBalance: Double? = nil,
+        toppedUpBalance: Double? = nil,
+        balanceCurrency: String? = nil,
+        balanceAvailable: Bool? = nil)
     {
         self.todayTokens = todayTokens
         self.currentMonthTokens = currentMonthTokens
@@ -214,6 +225,11 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
         self.daily = daily
         self.currency = currency
         self.updatedAt = updatedAt
+        self.totalBalance = totalBalance
+        self.grantedBalance = grantedBalance
+        self.toppedUpBalance = toppedUpBalance
+        self.balanceCurrency = balanceCurrency
+        self.balanceAvailable = balanceAvailable
     }
 }
 

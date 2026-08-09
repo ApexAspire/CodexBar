@@ -333,7 +333,7 @@ struct DeepSeekUsageFetcherTests {
     }
 
     @Test
-    func `balance snapshot has nil usage summary`() throws {
+    func `balance snapshot always has deepseekUsage with balance fields populated`() throws {
         let json = """
         {
           "is_available": true,
@@ -349,7 +349,17 @@ struct DeepSeekUsageFetcherTests {
         """
         let snapshot = try DeepSeekUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
         let usage = snapshot.toUsageSnapshot()
-        #expect(usage.deepseekUsage == nil)
+        // deepseekUsage is now always non-nil: balance data is injected even when the
+        // optional usage-summary fetch was skipped or failed.
+        let dsUsage = try #require(usage.deepseekUsage)
+        #expect(dsUsage.totalBalance == 50.0)
+        #expect(dsUsage.grantedBalance == 10.0)
+        #expect(dsUsage.toppedUpBalance == 40.0)
+        #expect(dsUsage.balanceCurrency == "USD")
+        #expect(dsUsage.balanceAvailable == true)
+        // Usage-cost fields remain zeroed because no usage summary was attached.
+        #expect(dsUsage.todayCost == nil)
+        #expect(dsUsage.todayTokens == 0)
     }
 
     @Test
