@@ -174,9 +174,34 @@ public enum WidgetSnapshotStore {
         do {
             let data = try self.encoder.encode(snapshot)
             try data.write(to: url, options: [.atomic])
+            self.writeReadableMirror(data)
         } catch {
             return
         }
+    }
+
+    /// Plain-file mirror of the snapshot, written alongside the group container.
+    ///
+    /// `~/Library/Group Containers/**` is TCC-protected, so another tool on the
+    /// same Mac reading it trips the "would like to access data from other
+    /// apps" prompt — and a short-lived helper respawned by launchd never gets
+    /// durable consent, because TCC has no stable responsible application to
+    /// record it against. Application Support carries no such gate, so the same
+    /// bytes are readable without prompting anyone.
+    ///
+    /// Best-effort: the group container stays the source of truth for the
+    /// widget, and a failed mirror write is not an error.
+    public static var readableMirrorURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/CodexBar", isDirectory: true)
+            .appendingPathComponent(AppGroupSupport.widgetSnapshotFilename, isDirectory: false)
+    }
+
+    private static func writeReadableMirror(_ data: Data) {
+        let url = self.readableMirrorURL
+        try? FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: url, options: [.atomic])
     }
 
     private static func snapshotURL(bundleID: String?) -> URL {
