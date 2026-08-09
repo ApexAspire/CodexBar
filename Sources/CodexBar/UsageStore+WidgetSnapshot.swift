@@ -73,7 +73,22 @@ extension UsageStore {
             creditsRemaining: creditsRemaining,
             codeReviewRemainingPercent: codeReviewRemaining,
             tokenUsage: tokenUsage,
-            dailyUsage: dailyUsage)
+            dailyUsage: dailyUsage,
+            extraWindows: Self.publishableExtraWindows(snapshot: snapshot))
+    }
+
+    /// Named windows worth publishing alongside the fixed slots. Windows whose
+    /// usage is not yet known are dropped: their `usedPercent` is placeholder
+    /// data, and a reader outside the app has no way to tell that apart.
+    private nonisolated static func publishableExtraWindows(
+        snapshot: UsageSnapshot) -> [NamedRateWindow]?
+    {
+        guard let windows = snapshot.extraRateWindows?.filter({ $0.usageKnown }),
+              !windows.isEmpty
+        else {
+            return nil
+        }
+        return windows
     }
 
     private nonisolated static func widgetTokenUsageSummary(

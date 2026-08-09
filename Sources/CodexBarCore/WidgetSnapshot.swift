@@ -24,6 +24,14 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let codeReviewRemainingPercent: Double?
         public let tokenUsage: TokenUsageSummary?
         public let dailyUsage: [DailyUsagePoint]
+        /// Named windows with no fixed slot in `primary`/`secondary`/`tertiary`
+        /// — model-scoped quotas such as `claude-fable`.
+        ///
+        /// Data only: `usageRows` still decides what the widget renders, so
+        /// publishing these changes no existing surface. It exists so readers of
+        /// `widget-snapshot.json` outside the app can see windows the menu bar
+        /// already displays, rather than re-querying the provider for them.
+        public let extraWindows: [NamedRateWindow]?
 
         public init(
             provider: UsageProvider,
@@ -35,7 +43,8 @@ public struct WidgetSnapshot: Codable, Sendable {
             creditsRemaining: Double?,
             codeReviewRemainingPercent: Double?,
             tokenUsage: TokenUsageSummary?,
-            dailyUsage: [DailyUsagePoint])
+            dailyUsage: [DailyUsagePoint],
+            extraWindows: [NamedRateWindow]? = nil)
         {
             self.provider = provider
             self.updatedAt = updatedAt
@@ -47,6 +56,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.codeReviewRemainingPercent = codeReviewRemainingPercent
             self.tokenUsage = tokenUsage
             self.dailyUsage = dailyUsage
+            self.extraWindows = extraWindows
         }
     }
 

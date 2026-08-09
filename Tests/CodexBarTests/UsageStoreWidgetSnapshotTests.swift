@@ -195,4 +195,60 @@ struct UsageStoreWidgetSnapshotTests {
         #expect(entry.secondary == nil)
         #expect(entry.usageRows?.isEmpty == true)
     }
+
+    @Test
+    func `widget snapshot publishes model scoped windows without changing rows`() async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-extra-windows"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 16, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 82, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "claude-fable",
+                    title: "Fable",
+                    window: RateWindow(usedPercent: 77, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "claude-unknown-usage",
+                    title: "Pending",
+                    window: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+                    usageKnown: false),
+            ],
+            updatedAt: Date())
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "extra-windows-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .claude })
+
+        let fable = try #require(entry.extraWindows?.first { $0.id == "claude-fable" })
+        #expect(fable.window.usedPercent == 77)
+
+        // Placeholder percentages must not escape the app: a reader outside it
+        // cannot tell them from real usage.
+        #expect(entry.extraWindows?.contains { $0.id == "claude-unknown-usage" } == false)
+
+        // Rendered rows stay untouched — this field is for out-of-process
+        // readers, not a new widget row.
+        #expect(entry.usageRows?.map(\.id) == ["primary", "secondary"])
+    }
 }
