@@ -60,13 +60,20 @@ extension UsageMenuCardView.Model {
         {
             let symbol = usage.currency == "CNY" ? "¥" : "$"
             let todayCostStr = usage.todayCost.map { "\(symbol)\(String(format: "%.4f", max(0, $0)))" } ?? "—"
-            return [
-                String(
-                    format: L("Today: %@ · %@ tokens"),
-                    todayCostStr,
-                    UsageFormatter.tokenCountString(usage.todayTokens)),
-                String(format: L("This month: %@ tokens"), UsageFormatter.tokenCountString(usage.currentMonthTokens)),
-            ]
+            var lines = [String]()
+            if let last24h = usage.last24hCost {
+                lines.append(String(
+                    format: L("Last 24h: %@"),
+                    "\(symbol)\(String(format: "%.4f", max(0, last24h)))"))
+            }
+            lines.append(String(
+                format: L("Today: %@ · %@ tokens"),
+                todayCostStr,
+                UsageFormatter.tokenCountString(usage.todayTokens)))
+            lines.append(String(
+                format: L("This month: %@ tokens"),
+                UsageFormatter.tokenCountString(usage.currentMonthTokens)))
+            return lines
         }
 
         if input.provider == .ollama,

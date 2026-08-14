@@ -76,15 +76,17 @@ enum MenuBarDisplayText {
             weeklySeverity: UsageSeverity.from(window: weeklyWindow, showUsed: showUsed))
     }
 
-    /// DeepSeek-specific stacked display: top line is today's spend, bottom line is current balance.
+    /// DeepSeek-specific stacked display: top line is rolling last-24h spend (from local balance
+    /// sampling; falls back to the platform's today bucket until history warms), bottom line is
+    /// current balance.
     /// Severity on the balance line drives the dot colour: critical < $1, warning < $5, normal otherwise.
     static func deepSeekStackedLines(snapshot: UsageSnapshot) -> StackedTextLines? {
         guard let usage = snapshot.deepseekUsage else { return nil }
         let symbol = (usage.balanceCurrency ?? usage.currency) == "CNY" ? "¥" : "$"
 
         let spendText: String
-        if let todayCost = usage.todayCost {
-            spendText = "S:\(symbol)\(String(format: "%.2f", max(0, todayCost)))"
+        if let spend = usage.last24hCost ?? usage.todayCost {
+            spendText = "S:\(symbol)\(String(format: "%.2f", max(0, spend)))"
         } else {
             spendText = "S:—"
         }

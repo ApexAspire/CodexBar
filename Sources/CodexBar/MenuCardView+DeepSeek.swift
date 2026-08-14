@@ -11,6 +11,24 @@ extension UsageMenuCardView.Model {
 
         var metrics: [Metric] = []
 
+        // Rolling last-24h spend — computed from locally sampled balance deltas, because the
+        // platform API only exposes per-day buckets in the platform's timezone. Matches the
+        // S: figure in the stacked menu bar tile once history has warmed.
+        if let last24h = usage?.last24hCost {
+            metrics.append(Metric(
+                id: "deepseek-24h-spend",
+                title: L("Last 24h"),
+                percent: 0,
+                percentStyle: .used,
+                statusText: String(format: "\(symbol)%.4f", max(0, last24h)),
+                resetText: nil,
+                detailText: nil,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true))
+        }
+
         // Today's spend — sourced from the platform cost/amount API daily breakdown.
         let todaySpendText: String
         if let cost = usage?.todayCost {

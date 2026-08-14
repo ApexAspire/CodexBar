@@ -39,6 +39,9 @@ public struct DeepSeekUsageSnapshot: Sendable {
     public let toppedUpBalance: Double
     public let usageSummary: DeepSeekUsageSummary?
     public let updatedAt: Date
+    /// Rolling last-24h spend from locally sampled balance deltas; see
+    /// DeepSeekBalanceHistory. Nil until the sample history warms up.
+    public let last24hCost: Double?
 
     public init(
         isAvailable: Bool,
@@ -47,7 +50,8 @@ public struct DeepSeekUsageSnapshot: Sendable {
         grantedBalance: Double,
         toppedUpBalance: Double,
         usageSummary: DeepSeekUsageSummary? = nil,
-        updatedAt: Date)
+        updatedAt: Date,
+        last24hCost: Double? = nil)
     {
         self.isAvailable = isAvailable
         self.currency = currency
@@ -56,6 +60,7 @@ public struct DeepSeekUsageSnapshot: Sendable {
         self.toppedUpBalance = toppedUpBalance
         self.usageSummary = usageSummary
         self.updatedAt = updatedAt
+        self.last24hCost = last24hCost
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
@@ -131,7 +136,8 @@ public struct DeepSeekUsageSnapshot: Sendable {
             grantedBalance: self.grantedBalance,
             toppedUpBalance: self.toppedUpBalance,
             balanceCurrency: self.currency,
-            balanceAvailable: self.isAvailable)
+            balanceAvailable: self.isAvailable,
+            last24hCost: self.last24hCost)
     }
 }
 
@@ -186,7 +192,8 @@ public struct DeepSeekUsageFetcher: Sendable {
             },
             fetchSummary: { key in
                 try await self.fetchUsageSummary(apiKey: key)
-            })
+            },
+            balanceHistoryStore: DeepSeekBalanceHistoryStore())
     }
 
     static func _fetchUsageForTesting(
@@ -194,7 +201,8 @@ public struct DeepSeekUsageFetcher: Sendable {
         includeOptionalUsage: Bool,
         optionalSummaryJoinGrace: Duration = .zero,
         fetchBalanceData: @escaping @Sendable (String) async throws -> Data,
-        fetchSummary: @escaping @Sendable (String) async throws -> DeepSeekUsageSummary)
+        fetchSummary: @escaping @Sendable (String) async throws -> DeepSeekUsageSummary,
+        balanceHistoryStore: DeepSeekBalanceHistoryStore? = nil)
         async throws -> DeepSeekUsageSnapshot
     {
         try await self.fetchUsage(
@@ -202,7 +210,8 @@ public struct DeepSeekUsageFetcher: Sendable {
             includeOptionalUsage: includeOptionalUsage,
             optionalSummaryJoinGrace: optionalSummaryJoinGrace,
             fetchBalanceData: fetchBalanceData,
-            fetchSummary: fetchSummary)
+            fetchSummary: fetchSummary,
+            balanceHistoryStore: balanceHistoryStore)
     }
 
     private static func fetchUsage(
@@ -210,7 +219,8 @@ public struct DeepSeekUsageFetcher: Sendable {
         includeOptionalUsage: Bool,
         optionalSummaryJoinGrace: Duration,
         fetchBalanceData: @escaping @Sendable (String) async throws -> Data,
-        fetchSummary: @escaping @Sendable (String) async throws -> DeepSeekUsageSummary)
+        fetchSummary: @escaping @Sendable (String) async throws -> DeepSeekUsageSummary,
+        balanceHistoryStore: DeepSeekBalanceHistoryStore?)
         async throws -> DeepSeekUsageSnapshot
     {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -244,6 +254,25 @@ public struct DeepSeekUsageFetcher: Sendable {
             throw error
         }
 
+        if let balanceHistoryStore {
+            let samples = balanceHistoryStore.record(
+                totalBalance: snapshot.totalBalance,
+                currency: snapshot.currency,
+                now: snapshot.updatedAt)
+            let rollingSpend = DeepSeekBalanceHistory.rollingSpend(
+                samples: samples,
+                now: snapshot.updatedAt)
+            snapshot = DeepSeekUsageSnapshot(
+                isAvailable: snapshot.isAvailable,
+                currency: snapshot.currency,
+                totalBalance: snapshot.totalBalance,
+                grantedBalance: snapshot.grantedBalance,
+                toppedUpBalance: snapshot.toppedUpBalance,
+                usageSummary: snapshot.usageSummary,
+                updatedAt: snapshot.updatedAt,
+                last24hCost: rollingSpend)
+        }
+
         if let summaryTask {
             let summary = try await self.completedOptionalUsageSummary(
                 from: summaryTask,
@@ -256,7 +285,8 @@ public struct DeepSeekUsageFetcher: Sendable {
                     grantedBalance: snapshot.grantedBalance,
                     toppedUpBalance: snapshot.toppedUpBalance,
                     usageSummary: summary,
-                    updatedAt: snapshot.updatedAt)
+                    updatedAt: snapshot.updatedAt,
+                    last24hCost: snapshot.last24hCost)
             }
         }
 

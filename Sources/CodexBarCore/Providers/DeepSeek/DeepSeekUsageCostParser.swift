@@ -195,6 +195,10 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
     public let toppedUpBalance: Double?
     public let balanceCurrency: String?
     public let balanceAvailable: Bool?
+    /// Rolling last-24h spend computed from locally sampled balance deltas
+    /// (the platform API only exposes per-day buckets). Nil until the local
+    /// history holds at least two samples inside the window.
+    public let last24hCost: Double?
 
     public init(
         todayTokens: Int,
@@ -212,7 +216,8 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
         grantedBalance: Double? = nil,
         toppedUpBalance: Double? = nil,
         balanceCurrency: String? = nil,
-        balanceAvailable: Bool? = nil)
+        balanceAvailable: Bool? = nil,
+        last24hCost: Double? = nil)
     {
         self.todayTokens = todayTokens
         self.currentMonthTokens = currentMonthTokens
@@ -230,6 +235,7 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
         self.toppedUpBalance = toppedUpBalance
         self.balanceCurrency = balanceCurrency
         self.balanceAvailable = balanceAvailable
+        self.last24hCost = last24hCost
     }
 }
 
