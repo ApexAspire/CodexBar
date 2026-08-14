@@ -830,7 +830,10 @@ extension ClaudeUsageFetcher {
 
     private static func attemptDelegatedRefresh(
         now: Date = Date(),
-        timeout: TimeInterval = 15,
+        // Claude session cold-start measures 11-12.4s on this machine with the full
+        // MCP roster; 15s left ~3s of margin and intermittently recorded the touch
+        // as failed. 45s keeps the delegated refresh comfortably inside its budget.
+        timeout: TimeInterval = 45,
         environment: [String: String] = ProcessInfo.processInfo.environment)
         async -> ClaudeOAuthDelegatedRefreshCoordinator.Outcome
     {
