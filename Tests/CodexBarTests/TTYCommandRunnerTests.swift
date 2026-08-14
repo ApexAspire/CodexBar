@@ -184,6 +184,26 @@ struct TTYCommandRunnerEnvTests {
     }
 
     @Test
+    func `backfills user and logname when missing`() {
+        let merged = TTYCommandRunner.enrichedEnvironment(
+            baseEnv: ["PATH": "/custom/bin"],
+            loginPATH: nil,
+            home: "/Users/fallback")
+        #expect(merged["USER"] == NSUserName())
+        #expect(merged["LOGNAME"] == NSUserName())
+    }
+
+    @Test
+    func `preserves existing user and logname`() {
+        let merged = TTYCommandRunner.enrichedEnvironment(
+            baseEnv: ["PATH": "/custom/bin", "USER": "tester", "LOGNAME": "tester"],
+            loginPATH: nil,
+            home: "/Users/tester")
+        #expect(merged["USER"] == "tester")
+        #expect(merged["LOGNAME"] == "tester")
+    }
+
+    @Test
     func `preserves existing term and custom vars`() {
         let merged = TTYCommandRunner.enrichedEnvironment(
             baseEnv: [

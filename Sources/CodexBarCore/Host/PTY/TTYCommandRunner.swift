@@ -1047,6 +1047,15 @@ public struct TTYCommandRunner {
         if env["HOME"]?.isEmpty ?? true {
             env["HOME"] = home
         }
+        // Claude Code keys its Keychain credential item on USER; without it the CLI
+        // falls back to account "unknown" and writes refreshed OAuth tokens to a
+        // duplicate item, revoking the real one via refresh-token rotation.
+        if env["USER"]?.isEmpty ?? true {
+            env["USER"] = NSUserName()
+        }
+        if env["LOGNAME"]?.isEmpty ?? true {
+            env["LOGNAME"] = NSUserName()
+        }
         if env["TERM"]?.isEmpty ?? true {
             env["TERM"] = "xterm-256color"
         }
