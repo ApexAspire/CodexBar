@@ -7,6 +7,7 @@ import FoundationNetworking
 public enum ZaiLimitType: String, Sendable {
     case timeLimit = "TIME_LIMIT"
     case tokensLimit = "TOKENS_LIMIT"
+    case creditLimit = "CREDIT_LIMIT"
 }
 
 /// Z.ai usage limit unit types
@@ -58,7 +59,9 @@ extension ZaiLimitEntry {
         if let computed = self.computedUsedPercent {
             return computed
         }
-        return self.percentage
+        // The raw API percentage can fall outside 0...100 (z.ai omits/misreports quota fields);
+        // clamp it like computedUsedPercent and every sibling provider instead of surfacing it raw.
+        return min(100, max(0, self.percentage))
     }
 
     public var windowMinutes: Int? {
@@ -137,7 +140,7 @@ public struct ZaiUsageDetail: Sendable, Codable {
 /// Complete z.ai usage response
 public struct ZaiUsageSnapshot: Sendable {
     public let tokenLimit: ZaiLimitEntry?
-    /// Shorter-window TOKENS_LIMIT (e.g. 5-hour), present only when the API returns two TOKENS_LIMIT entries.
+    /// Shorter-window TOKENS_LIMIT/CREDIT_LIMIT (e.g. 5-hour), present only when the API returns two coding-plan entries.
     public let sessionTokenLimit: ZaiLimitEntry?
     public let timeLimit: ZaiLimitEntry?
     public let planName: String?
@@ -198,7 +201,7 @@ extension ZaiUsageSnapshot {
     private static func rateWindow(for limit: ZaiLimitEntry) -> RateWindow {
         RateWindow(
             usedPercent: limit.usedPercent,
-            windowMinutes: limit.type == .tokensLimit ? limit.windowMinutes : nil,
+            windowMinutes: (limit.type == .tokensLimit || limit.type == .creditLimit) ? limit.windowMinutes : nil,
             resetsAt: limit.nextResetTime,
             resetDescription: self.resetDescription(for: limit))
     }
@@ -206,6 +209,9 @@ extension ZaiUsageSnapshot {
     private static func resetDescription(for limit: ZaiLimitEntry) -> String? {
         if limit.isMCPMonthlyMarker {
             return "Monthly"
+        }
+        if limit.type == .tokensLimit || limit.type == .creditLimit, limit.windowMinutes == 5 * 60 {
+            return "5-hour"
         }
         if let label = limit.windowLabel {
             return label
@@ -241,6 +247,7 @@ private struct ZaiQuotaLimitData: Decodable {
             container.decodeIfPresent(String.self, forKey: .plan),
             container.decodeIfPresent(String.self, forKey: .planType),
             container.decodeIfPresent(String.self, forKey: .packageName),
+            container.decodeIfPresent(String.self, forKey: .level),
         ].compactMap(\.self).first
         let trimmed = rawPlan?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.planName = (trimmed?.isEmpty ?? true) ? nil : trimmed
@@ -252,6 +259,7 @@ private struct ZaiQuotaLimitData: Decodable {
         case plan
         case planType = "plan_type"
         case packageName
+        case level
     }
 }
 
@@ -389,7 +397,7 @@ public struct ZaiUsageFetcher: Sendable {
         for limit in responseData.limits {
             if let entry = limit.toLimitEntry() {
                 switch entry.type {
-                case .tokensLimit:
+                case .tokensLimit, .creditLimit:
                     tokenLimits.append(entry)
                 case .timeLimit:
                     timeLimit = entry
@@ -397,7 +405,7 @@ public struct ZaiUsageFetcher: Sendable {
             }
         }
 
-        // Multiple TOKENS_LIMIT entries: shortest window → sessionTokenLimit (tertiary),
+        // Multiple TOKENS_LIMIT/CREDIT_LIMIT entries: shortest window → sessionTokenLimit (tertiary),
         // longest → tokenLimit (primary).
         let tokenLimit: ZaiLimitEntry?
         let sessionTokenLimit: ZaiLimitEntry?

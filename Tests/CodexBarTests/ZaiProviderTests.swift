@@ -64,7 +64,7 @@ struct ZaiUsageSnapshotTests {
         #expect(usage.primary?.usedPercent == 20)
         #expect(usage.primary?.windowMinutes == 300)
         #expect(usage.primary?.resetsAt == reset)
-        #expect(usage.primary?.resetDescription == "5 hours window")
+        #expect(usage.primary?.resetDescription == "5-hour")
         #expect(usage.secondary?.usedPercent == 20)
         #expect(usage.secondary?.resetDescription == "30 days window")
         #expect(usage.tertiary == nil)
@@ -96,7 +96,7 @@ struct ZaiUsageSnapshotTests {
         #expect(usage.primary?.usedPercent == 25)
         #expect(usage.primary?.windowMinutes == 300)
         #expect(usage.primary?.resetsAt == reset)
-        #expect(usage.primary?.resetDescription == "5 hours window")
+        #expect(usage.primary?.resetDescription == "5-hour")
         #expect(usage.zaiUsage?.tokenLimit?.usage == nil)
     }
 
@@ -610,5 +610,83 @@ struct ZaiAPIRegionTests {
         let env = [ZaiSettingsReader.apiHostKey: "open.bigmodel.cn"]
         let url = ZaiUsageFetcher.resolveQuotaURL(region: .global, environment: env)
         #expect(url.absoluteString == "https://open.bigmodel.cn/api/monitor/usage/quota/limit")
+    }
+}
+
+/// Regression coverage ported from upstream 013680770 (issues #2724 / #2712), restated for this
+/// fork's lane layout (weekly=primary, MCP=secondary, 5-hour=tertiary): credit-based GLM Coding
+/// Plans (lite/standard/pro) return CREDIT_LIMIT entries instead of TOKENS_LIMIT. Dropping them
+/// left the tracker with no 5-hour/weekly windows at all.
+struct ZaiCreditLimitTests {
+    /// Exact payload reported upstream in #2724 (lite plan, global region).
+    private static let creditPayload = """
+    {
+      "code": 200,
+      "msg": "Operation successful",
+      "data": {
+        "limits": [
+          {
+            "type": "CREDIT_LIMIT",
+            "unit": 3,
+            "number": 5,
+            "usage": 2000,
+            "currentValue": 71,
+            "remaining": 1929,
+            "percentage": 3,
+            "nextResetTime": 1786073946574
+          },
+          {
+            "type": "CREDIT_LIMIT",
+            "unit": 6,
+            "number": 1,
+            "usage": 10000,
+            "currentValue": 71,
+            "remaining": 9929,
+            "percentage": 1,
+            "nextResetTime": 1786660486998
+          }
+        ],
+        "level": "lite"
+      },
+      "success": true
+    }
+    """
+
+    @Test
+    func `parses CREDIT_LIMIT entries into weekly and session slots`() throws {
+        let snapshot = try ZaiUsageFetcher.parseUsageSnapshot(from: Data(Self.creditPayload.utf8))
+
+        // 5-hour credit window → sessionTokenLimit (tertiary lane in this fork)
+        #expect(snapshot.sessionTokenLimit?.type == .creditLimit)
+        #expect(snapshot.sessionTokenLimit?.unit == .hours)
+        #expect(snapshot.sessionTokenLimit?.number == 5)
+        #expect(snapshot.sessionTokenLimit?.windowMinutes == 300)
+
+        // Weekly credit window → tokenLimit (primary lane in this fork)
+        #expect(snapshot.tokenLimit?.type == .creditLimit)
+        #expect(snapshot.tokenLimit?.unit == .weeks)
+        #expect(snapshot.tokenLimit?.windowMinutes == 10080)
+
+        #expect(snapshot.timeLimit == nil)
+        #expect(snapshot.isValid)
+        // Credit plans report the plan name via "level".
+        #expect(snapshot.planName == "lite")
+    }
+
+    @Test
+    func `credit windows render real percentages with the 5-hour reset description`() throws {
+        let snapshot = try ZaiUsageFetcher.parseUsageSnapshot(from: Data(Self.creditPayload.utf8))
+        let usage = snapshot.toUsageSnapshot()
+
+        // Weekly lane: 71 of 10000 credits used → 0.71%.
+        #expect(abs((usage.primary?.usedPercent ?? 0) - 0.71) < 0.0001)
+        #expect(usage.primary?.windowMinutes == 10080)
+
+        // 5-hour lane: 71 of 2000 credits → 3.55%, not the 0% shown when CREDIT_LIMIT was dropped.
+        #expect(abs((usage.tertiary?.usedPercent ?? 0) - 3.55) < 0.0001)
+        #expect(usage.tertiary?.windowMinutes == 300)
+        #expect(usage.tertiary?.resetDescription == "5-hour")
+        // The 5-hour reset timestamp comes from the 5-hour entry, not the weekly schedule.
+        #expect(usage.tertiary?.resetsAt == Date(timeIntervalSince1970: 1786073946.574))
     }
 }
