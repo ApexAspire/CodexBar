@@ -164,6 +164,29 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
 - **Files & Folders prompts (folder/volume access)**: CodexBar launches provider CLIs and local probes for some providers. If those helpers read a project directory or external drive, macOS may ask CodexBar for that folder/volume (e.g., Desktop or an external volume). This is driven by the helper’s working directory, not background disk scanning.
 - **What we do not request in the background**: no Screen Recording or Accessibility permissions; user-triggered helper actions may ask macOS for Automation permission to open Terminal. No passwords are stored (browser cookies are reused when you opt in).
 
+## Troubleshooting
+
+### CodexBar is running but its menu bar item is missing
+
+First open **System Settings → Menu Bar** and make sure CodexBar is enabled. If the item disappeared after
+Bartender or another menu-bar manager crashed, macOS may have retained a blocked host identity. Use this
+bounded recovery once:
+
+1. Quit CodexBar (use Activity Monitor if its menu is inaccessible) and the menu-bar manager.
+2. In Terminal, increment CodexBar's status-item host generation:
+
+   ```sh
+   generation="$(defaults read com.steipete.codexbar statusItemHostGeneration 2>/dev/null || echo 0)"
+   defaults write com.steipete.codexbar statusItemHostGeneration -int "$((generation + 1))"
+   ```
+
+3. Relaunch CodexBar, then open **System Settings → Menu Bar** and enable CodexBar if macOS lists it as off.
+
+The increment gives CodexBar fresh status-item autosave identities without resetting its other preferences.
+Do not repeatedly rotate the generation: if one increment and relaunch do not restore the item, report the
+CodexBar, macOS, and menu-bar-manager versions with the output of
+`defaults read com.steipete.codexbar statusItemHostGeneration`.
+
 ## Docs
 - Providers overview: [docs/providers.md](docs/providers.md)
 - Provider authoring: [docs/provider.md](docs/provider.md)

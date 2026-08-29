@@ -33,16 +33,25 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private nonisolated static let mergedLegacyDefaultItemIndex = 0
 
     enum StatusItemIdentity {
+        static let hostGenerationDefaultsKey = "statusItemHostGeneration"
+
         case merged
         case provider(UsageProvider)
 
-        var autosaveName: String {
-            switch self {
+        func autosaveName(defaults: UserDefaults) -> String {
+            let base = switch self {
             case .merged:
                 "codexbar-merged"
             case let .provider(provider):
                 "codexbar-\(provider.rawValue)"
             }
+            // macOS 26 ControlCenter keys its blockedHosts registry on bundleId+autosaveName.
+            // A manager app (e.g. Bartender) that registers items and dies without
+            // unregistering leaves that key blocked forever (persists in cfprefsd's
+            // daemon-side DB across reboots). Bumping statusItemHostGeneration mints
+            // fresh host keys and escapes the stale block without changing bundle id.
+            let generation = defaults.integer(forKey: Self.hostGenerationDefaultsKey)
+            return generation > 0 ? "\(base)-g\(generation)" : base
         }
 
         var accessibilityIdentifier: String {
@@ -282,10 +291,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         // setups. Let macOS place items passively, matching the working legacy build.
         // MenuBarStatusItemPlacementPreflight.prepare(
         //     defaults: defaults,
-        //     autosaveName: identity.autosaveName,
+        //     autosaveName: identity.autosaveName(defaults: defaults),
         //     legacyDefaultItemIndex: legacyDefaultItemIndex)
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
-        item.autosaveName = identity.autosaveName
+        item.autosaveName = identity.autosaveName(defaults: defaults)
         if let button = item.button {
             // Ensure the icon is rendered at 1:1 without resampling (crisper edges for template images).
             button.imageScaling = .scaleNone

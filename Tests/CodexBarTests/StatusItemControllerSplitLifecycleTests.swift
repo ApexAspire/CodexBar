@@ -117,10 +117,38 @@ struct StatusItemControllerSplitLifecycleTests {
     }
 
     @Test
-    func `status item identity returns stable autosave names`() {
-        #expect(StatusItemController.StatusItemIdentity.merged.autosaveName == "codexbar-merged")
-        #expect(StatusItemController.StatusItemIdentity.provider(.codex).autosaveName == "codexbar-codex")
-        #expect(StatusItemController.StatusItemIdentity.provider(.claude).autosaveName == "codexbar-claude")
+    func `status item identity preserves historical autosave names without a generation`() throws {
+        let suite = "StatusItemControllerSplitLifecycleTests-generation-zero-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        #expect(defaults.object(forKey: StatusItemController.StatusItemIdentity.hostGenerationDefaultsKey) == nil)
+        #expect(StatusItemController.StatusItemIdentity.merged.autosaveName(defaults: defaults) == "codexbar-merged")
+        #expect(
+            StatusItemController.StatusItemIdentity.provider(.codex).autosaveName(defaults: defaults)
+                == "codexbar-codex")
+        #expect(
+            StatusItemController.StatusItemIdentity.provider(.claude).autosaveName(defaults: defaults)
+                == "codexbar-claude")
+    }
+
+    @Test
+    func `status item identity derives a fresh autosave name for each generation bump`() throws {
+        let suite = "StatusItemControllerSplitLifecycleTests-generation-bump-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let key = StatusItemController.StatusItemIdentity.hostGenerationDefaultsKey
+
+        defaults.set(1, forKey: key)
+        let firstGeneration = StatusItemController.StatusItemIdentity.merged.autosaveName(defaults: defaults)
+        defaults.set(2, forKey: key)
+        let secondGeneration = StatusItemController.StatusItemIdentity.merged.autosaveName(defaults: defaults)
+
+        #expect(firstGeneration == "codexbar-merged-g1")
+        #expect(secondGeneration == "codexbar-merged-g2")
+        #expect(firstGeneration != secondGeneration)
     }
 
     @Test
