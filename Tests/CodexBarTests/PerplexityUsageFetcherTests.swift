@@ -224,6 +224,56 @@ struct PerplexityUsageFetcherTests {
         #expect(tertiary.usedPercent == 100.0)
     }
 
+    // MARK: - Unknown grant types
+
+    @Test
+    func `unknown grant types pool with purchased instead of vanishing`() throws {
+        // Regression (2026-08-30, same class as the ZAI CREDIT_LIMIT fix): if
+        // Perplexity renames a grant type key ("recurring" → "subscription"),
+        // the grant must stay visible as a usable pool, not be dropped and
+        // render a fake "0/0 credits, 100% used" primary lane.
+        let json = """
+        {
+          "balance_cents": 250,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 0,
+          "credit_grants": [
+            { "type": "subscription", "amount_cents": 5000, "expires_at_ts": \(Self.futureTs) }
+          ],
+          "total_usage_cents": 2000
+        }
+        """
+        let snapshot = try PerplexityUsageFetcher._parseResponseForTesting(Data(json.utf8), now: Self.now)
+
+        #expect(snapshot.recurringTotal == 0)
+        #expect(snapshot.purchasedTotal == 5000) // unknown grant stays visible
+        #expect(snapshot.purchasedUsed == 2000)
+        #expect(snapshot.planName == nil)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary == nil) // no fake 0/0-at-100% lane
+        #expect(usage.tertiary != nil)
+    }
+
+    @Test
+    func `unknown grant types with past expiry are excluded`() throws {
+        let json = """
+        {
+          "balance_cents": 0,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 0,
+          "credit_grants": [
+            { "type": "subscription", "amount_cents": 5000, "expires_at_ts": \(Self.pastTs) }
+          ],
+          "total_usage_cents": 0
+        }
+        """
+        let snapshot = try PerplexityUsageFetcher._parseResponseForTesting(Data(json.utf8), now: Self.now)
+
+        #expect(snapshot.purchasedTotal == 0)
+        #expect(snapshot.purchasedUsed == 0)
+    }
+
     // MARK: - Purchased credits from credit_grants
 
     @Test

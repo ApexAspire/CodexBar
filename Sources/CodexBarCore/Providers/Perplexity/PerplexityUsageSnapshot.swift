@@ -14,11 +14,23 @@ public struct PerplexityUsageSnapshot: Sendable {
     public let updatedAt: Date
 
     public init(response: PerplexityCreditsResponse, now: Date) {
+        // Grants whose type key Perplexity renamed or introduced pool with
+        // purchased credits instead of being dropped: an unknown type must
+        // degrade into a visible uncategorized pool, never a fake
+        // "0/0 credits, 100% used" primary lane. Known expired promotional
+        // grants are still excluded below.
+        let knownTypes: Set<String> = ["recurring", "promotional", "purchased"]
         let recurring = response.creditGrants.filter { $0.type == "recurring" }
         let promotional = response.creditGrants.filter {
             $0.type == "promotional" && ($0.expiresAtTs ?? .infinity) > now.timeIntervalSince1970
         }
-        let purchased = response.creditGrants.filter { $0.type == "purchased" }
+        let purchased = response.creditGrants.filter { grant in
+            if grant.type == "purchased" { return true }
+            guard !knownTypes.contains(grant.type) else { return false }
+            // Unknown types pool with purchased, but respect an explicit past
+            // expiry (e.g. a renamed promotional grant that already lapsed).
+            return (grant.expiresAtTs ?? .infinity) > now.timeIntervalSince1970
+        }
 
         // All timestamps from the Perplexity API are Unix seconds (verified Feb 2026).
         let recurringSum = max(0, recurring.reduce(0.0) { $0 + $1.amountCents })
