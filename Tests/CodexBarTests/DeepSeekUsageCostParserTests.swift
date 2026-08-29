@@ -545,7 +545,11 @@ struct DeepSeekUsageCostParserTests {
     // MARK: - Unknown Types Handling
 
     @Test
-    func `unknown usage types are ignored safely`() throws {
+    func `unknown usage types count toward sums instead of vanishing`() throws {
+        // Regression (2026-08-30, same class as the ZAI CREDIT_LIMIT fix): if
+        // DeepSeek renames a usage category key, its tokens and spend must
+        // still land in the sums — a rename degrades to an uncategorized lane,
+        // never to silent zeros on the spend tile.
         let amountJSON = """
         {
           "code": 0,
@@ -559,12 +563,27 @@ struct DeepSeekUsageCostParserTests {
                   "model": "deepseek-v4-flash",
                   "usage": [
                     {"type": "PROMPT_CACHE_HIT_TOKEN", "amount": "100"},
-                    {"type": "UNKNOWN_TYPE", "amount": "999"},
+                    {"type": "REASONING_TOKEN", "amount": "999"},
                     {"type": "RESPONSE_TOKEN", "amount": "200"}
                   ]
                 }
               ],
-              "days": []
+              "days": [
+                {
+                  "date": "2026-05-26",
+                  "data": [
+                    {
+                      "model": "deepseek-v4-flash",
+                      "usage": [
+                        {"type": "PROMPT_CACHE_HIT_TOKEN", "amount": "100"},
+                        {"type": "REASONING_TOKEN", "amount": "999"},
+                        {"type": "RESPONSE_TOKEN", "amount": "200"},
+                        {"type": "REQUEST", "amount": "7"}
+                      ]
+                    }
+                  ]
+                }
+              ]
             }
           }
         }
@@ -584,12 +603,26 @@ struct DeepSeekUsageCostParserTests {
                     "model": "deepseek-v4-flash",
                     "usage": [
                       {"type": "PROMPT_CACHE_HIT_TOKEN", "amount": "1.0"},
-                      {"type": "UNKNOWN_TYPE", "amount": "99.0"},
+                      {"type": "REASONING_TOKEN", "amount": "99.0"},
                       {"type": "RESPONSE_TOKEN", "amount": "2.0"}
                     ]
                   }
                 ],
-                "days": [],
+                "days": [
+                  {
+                    "date": "2026-05-26",
+                    "data": [
+                      {
+                        "model": "deepseek-v4-flash",
+                        "usage": [
+                          {"type": "PROMPT_CACHE_HIT_TOKEN", "amount": "1.0"},
+                          {"type": "REASONING_TOKEN", "amount": "99.0"},
+                          {"type": "RESPONSE_TOKEN", "amount": "2.0"}
+                        ]
+                      }
+                    ]
+                  }
+                ],
                 "currency": "CNY"
               }
             ]
@@ -603,10 +636,17 @@ struct DeepSeekUsageCostParserTests {
             now: self.fixtureNow,
             calendar: self.fixtureCalendar)
 
-        // Unknown type should be ignored - only known categories with non-zero tokens appear in breakdown
-        // todayTokens comes from daily data which is empty in this test, so it's 0
-        #expect(summary.todayTokens == 0)
-        #expect(summary.categoryBreakdown.count == 3) // Always 3 categories, even if some have 0 tokens
+        // Unknown-category tokens (999) and spend (99.0) are included in sums.
+        #expect(summary.todayTokens == 100 + 999 + 200)
+        #expect(summary.currentMonthTokens == 100 + 999 + 200)
+        #expect(summary.requestCount == 7)
+        #expect(abs((summary.todayCost ?? 0) - 102.0) < 0.0001)
+        #expect(abs((summary.currentMonthCost ?? 0) - 102.0) < 0.0001)
+
+        // The per-category breakdown still only models the three known lanes.
+        #expect(summary.categoryBreakdown.count == 3)
+        let cacheHit = summary.categoryBreakdown.first { $0.category == .promptCacheHitToken }
+        #expect(cacheHit?.tokens == 100)
     }
 
     // MARK: - Error Handling

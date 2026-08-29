@@ -256,8 +256,13 @@ public enum DeepSeekUsageCategory: String, Sendable, Equatable {
     case promptCacheMissToken = "PROMPT_CACHE_MISS_TOKEN"
     case responseToken = "RESPONSE_TOKEN"
     case request = "REQUEST"
+    /// A category key DeepSeek introduced or renamed that we don't model.
+    /// Never dropped: unknown token/cost lines still count toward token and
+    /// spend sums (a rename must degrade into a visible wrong lane, not
+    /// silent zeros). Only the per-category breakdown skips it.
+    case unknown
 
-    public init?(rawValue: String) {
+    public init(rawValue: String) {
         switch rawValue.uppercased() {
         case "PROMPT_CACHE_HIT_TOKEN":
             self = .promptCacheHitToken
@@ -268,7 +273,7 @@ public enum DeepSeekUsageCategory: String, Sendable, Equatable {
         case "REQUEST":
             self = .request
         default:
-            return nil
+            self = .unknown
         }
     }
 }
@@ -529,7 +534,7 @@ enum DeepSeekUsageCostParser {
         if let amounts = amountMap[dateString] {
             for items in amounts.values {
                 for item in items {
-                    guard let category = DeepSeekUsageCategory(rawValue: item.type ?? "") else { continue }
+                    let category = DeepSeekUsageCategory(rawValue: item.type ?? "")
                     if category == .request {
                         requests += self.parseTokenAmount(item.amount)
                     } else {
@@ -542,7 +547,7 @@ enum DeepSeekUsageCostParser {
         if let costs = costMap[dateString] {
             for items in costs.values {
                 for item in items {
-                    guard let category = DeepSeekUsageCategory(rawValue: item.type ?? "") else { continue }
+                    let category = DeepSeekUsageCategory(rawValue: item.type ?? "")
                     if category != .request {
                         let amount = Self.parseCostAmount(item.amount)
                         if let existing = cost {
@@ -572,7 +577,7 @@ enum DeepSeekUsageCostParser {
             if let amounts = ctx.amountMap[date] {
                 for items in amounts.values {
                     for item in items {
-                        guard let category = DeepSeekUsageCategory(rawValue: item.type ?? "") else { continue }
+                        let category = DeepSeekUsageCategory(rawValue: item.type ?? "")
                         if category == .request {
                             requests += Self.parseTokenAmount(item.amount)
                         } else {
@@ -585,7 +590,7 @@ enum DeepSeekUsageCostParser {
             if let costs = ctx.costMap[date] {
                 for items in costs.values {
                     for item in items {
-                        guard let category = DeepSeekUsageCategory(rawValue: item.type ?? "") else { continue }
+                        let category = DeepSeekUsageCategory(rawValue: item.type ?? "")
                         if category != .request {
                             let amount = Self.parseCostAmount(item.amount)
                             if let existing = cost {
@@ -614,7 +619,7 @@ enum DeepSeekUsageCostParser {
             guard let model = modelUsage.model else { continue }
             var total = 0
             for item in modelUsage.usage ?? [] {
-                guard let category = DeepSeekUsageCategory(rawValue: item.type ?? "") else { continue }
+                let category = DeepSeekUsageCategory(rawValue: item.type ?? "")
                 if category != .request {
                     let amount = Self.parseTokenAmount(item.amount)
                     total += amount
@@ -627,7 +632,7 @@ enum DeepSeekUsageCostParser {
         for costUsage in totalCosts {
             guard costUsage.model != nil else { continue }
             for item in costUsage.usage ?? [] {
-                guard let category = DeepSeekUsageCategory(rawValue: item.type ?? "") else { continue }
+                let category = DeepSeekUsageCategory(rawValue: item.type ?? "")
                 if category != .request {
                     let amount = Self.parseCostAmount(item.amount)
                     categoryCosts[category, default: 0] += amount
@@ -667,7 +672,7 @@ enum DeepSeekUsageCostParser {
             if let amounts = ctx.amountMap[date] {
                 for items in amounts.values {
                     for item in items {
-                        guard let category = DeepSeekUsageCategory(rawValue: item.type ?? "") else { continue }
+                        let category = DeepSeekUsageCategory(rawValue: item.type ?? "")
                         if category == .request {
                             dayRequests += Self.parseTokenAmount(item.amount)
                         } else {
@@ -680,7 +685,7 @@ enum DeepSeekUsageCostParser {
             if let costs = ctx.costMap[date] {
                 for items in costs.values {
                     for item in items {
-                        guard let category = DeepSeekUsageCategory(rawValue: item.type ?? "") else { continue }
+                        let category = DeepSeekUsageCategory(rawValue: item.type ?? "")
                         if category != .request {
                             let amount = Self.parseCostAmount(item.amount)
                             if let existing = dayCost {
