@@ -28,6 +28,7 @@ Fork remains on `stacked-squash`, which contains current `upstream/main` plus th
 
 ## 4. Deliverables and version history
 
+- 2026-08-30 — `cccef3455` fix(zai): parse CREDIT_LIMIT quota entries; restore 5-hour/weekly limits. GLM Coding Plans renamed TOKENS_LIMIT → CREDIT_LIMIT; the parser dropped both coding windows. Port of upstream `013680770` (+ `level` plan key from `7002b5782`, usedPercent clamp from `39d86dae2`) adapted to the fork lane layout; upstream's lane reorder, JS cutover, and declarative details deliberately NOT taken. Full suite green; live-verified via installed-bundle CLI (weekly 98% left / 6d22h, 5-hour 88% left / 3h49m, Plan: Pro). Replaced `/Applications/CodexBar.app` (was `dc5893f7`), Launch at Login retained.
 - 2026-08-02 — `76d66c3e` fix: correct Kimi stacked semantics and Dark Mode mark; decode Claude Fable's scoped weekly limit into the dropdown. Pushed to `origin/stacked-squash`; full app + widget packaged, installed as `/Applications/CodexBar.app`, and verified to record `CodexGitCommit=76d66c3e` with Launch at Login retained.
 - 2026-07-14 — `dcb47cb7` fix: keep weekly-only Codex usage off the stacked session line (lane-aware `IconRemainingResolver.resolvedStackedWindows`; regression test). `59fc41b9` chore: gitignore `.claude/`. Pushed to `origin/stacked-squash`; app rebuilt, installed, visually verified (`S:--` / `W:7%`).
 - 2026-06-16 — `bb3e1cc1` menu-bar dark-mode text colour, stacked line order, Settings-window fixes.
@@ -40,6 +41,7 @@ Fork remains on `stacked-squash`, which contains current `upstream/main` plus th
 
 ## 6. Open items
 
+- Sibling-sweep findings from the CREDIT_LIMIT fix (2026-08-30, all outside that change, unfixed): **HIGH** DeepSeekUsageCostParser.swift — 8 `DeepSeekUsageCategory(rawValue:) else { continue }` sites silently drop unknown usage categories from token/spend sums (same bug class as the ZAI fix; sits under the DeepSeek spend tile). **HIGH** PerplexityUsageSnapshot.swift:17-21 — grant-type filter (`recurring`/`promotional`/`purchased`) silently excludes renamed grant types from sums, can render fake 0/0 at 100% used. **MEDIUM** ZaiUsageStats.swift:278 — unknown future limit types still drop silently, no log; Codebuff/Mistral fetchers — wholesale key rename yields silent-empty display (copy Alibaba's throw-on-no-data pattern). 5 LOW (Kimi scope string, Antigravity oneof, Gemini tier, MiniMax lane, Claude web window keys). Fix individually, each verified against its own fixture.
 - Finalize `stacked-squash` → fork `main` (requires explicit re-auth + `git push --force-with-lease`).
 - Stable self-signed code signing (stop Bartender losing track across ad-hoc rebuilds).
 - Watch for OpenAI restoring session limits (Reddit reports the removal is temporary) — no code change needed; verify `S:` line repopulates.
