@@ -1269,6 +1269,40 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `zai stacked text maps 5-hour to session and weekly to weekly`() {
+        // ZAI lane layout: primary=weekly, secondary=MCP monthly, tertiary=5-hour
+        // (sessionTokenLimit). Regression (2026-08-30): positional resolution put
+        // weekly in the session slot and the usually-absent MCP window in the
+        // weekly slot ("S shows the weekly amount, W shows nothing").
+        let weekly = RateWindow(
+            usedPercent: 2,
+            windowMinutes: 10080,
+            resetsAt: nil,
+            resetDescription: "Weekly")
+        let fiveHour = RateWindow(
+            usedPercent: 12,
+            windowMinutes: 300,
+            resetsAt: nil,
+            resetDescription: "5-hour")
+        let snapshot = UsageSnapshot(
+            primary: weekly,
+            secondary: nil,
+            tertiary: fiveHour,
+            updatedAt: Date())
+
+        let windows = IconRemainingResolver.resolvedStackedWindows(snapshot: snapshot, style: .zai)
+        #expect(windows.session?.usedPercent == 12)
+        #expect(windows.weekly?.usedPercent == 2)
+
+        let lines = MenuBarDisplayText.stackedPercentLines(
+            sessionWindow: windows.session,
+            weeklyWindow: windows.weekly,
+            showUsed: true)
+        #expect(lines?.session == "S:12%")
+        #expect(lines?.weekly == "W:2%")
+    }
+
+    @Test
     func `kimi stacked icon is light in dark appearance`() throws {
         let appearance = try #require(NSAppearance(named: .darkAqua))
         let image = StackedTextStatusView.renderedImage(

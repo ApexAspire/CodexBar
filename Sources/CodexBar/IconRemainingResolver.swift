@@ -86,6 +86,13 @@ enum IconRemainingResolver {
         if style == .kimi {
             return (session: snapshot.secondary, weekly: snapshot.primary)
         }
+        // ZAI keeps weekly in primary and the 5-hour coding window in tertiary
+        // (sessionTokenLimit); secondary is the MCP monthly window. Positional
+        // resolution put weekly in the session slot and (usually absent) MCP in
+        // the weekly slot.
+        if style == .zai {
+            return (session: snapshot.tertiary, weekly: snapshot.primary)
+        }
         let windows = self.resolvedWindows(snapshot: snapshot, style: style)
         return (session: windows.primary, weekly: windows.secondary)
     }
