@@ -97,6 +97,23 @@ enum IconRemainingResolver {
         return (session: windows.primary, weekly: windows.secondary)
     }
 
+    /// The window whose cap is the weekly quota — what pace projection runs
+    /// against. Kimi and ZAI keep weekly in primary on this fork (secondary is
+    /// the 5-hour / MCP window); Abacus bills monthly credits on primary;
+    /// upstream-layout providers keep weekly in secondary.
+    static func weeklyPaceWindow(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot)
+        -> RateWindow?
+    {
+        switch provider {
+        case .abacus, .kimi, .zai:
+            return snapshot.primary
+        default:
+            return snapshot.secondary
+        }
+    }
+
     static func resolvedRemaining(
         snapshot: UsageSnapshot,
         style: IconStyle,

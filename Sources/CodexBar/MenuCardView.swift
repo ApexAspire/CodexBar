@@ -1402,6 +1402,21 @@ extension UsageMenuCardView.Model {
                 }
             }
         }
+        // Kimi and ZAI keep their weekly cap in primary on this fork; project the
+        // weekly pace onto that metric. ZAI's token detail stays as detailText.
+        if input.provider == .kimi || input.provider == .zai, let pace = input.weeklyPace {
+            let paceDetail = Self.weeklyPaceDetail(
+                window: primary,
+                now: input.now,
+                pace: pace,
+                showUsed: input.usageBarsShowUsed)
+            if let paceDetail {
+                primaryDetailLeft = paceDetail.leftLabel
+                primaryDetailRight = paceDetail.rightLabel
+                primaryPacePercent = paceDetail.pacePercent
+                primaryPaceOnTop = paceDetail.paceOnTop
+            }
+        }
         if let paceDetail = Self.cursorBillingCyclePaceDetail(window: primary, input: input) {
             primaryDetailLeft = paceDetail.leftLabel
             primaryDetailRight = paceDetail.rightLabel
@@ -1457,11 +1472,18 @@ extension UsageMenuCardView.Model {
         title: String? = nil,
         zaiTimeDetail: String?) -> Metric
     {
-        var paceDetail = Self.weeklyPaceDetail(
-            window: weekly,
-            now: input.now,
-            pace: input.weeklyPace,
-            showUsed: input.usageBarsShowUsed)
+        // Kimi's secondary is the 5-hour rate limit and ZAI's is the MCP monthly
+        // window — not weekly caps, so input.weeklyPace (computed on primary)
+        // must not project onto this row.
+        var paceDetail: PaceDetail? = if input.provider == .kimi || input.provider == .zai {
+            nil
+        } else {
+            Self.weeklyPaceDetail(
+                window: weekly,
+                now: input.now,
+                pace: input.weeklyPace,
+                showUsed: input.usageBarsShowUsed)
+        }
         var weeklyResetText = Self.resetText(for: weekly, style: input.resetTimeDisplayStyle, now: input.now)
         var weeklyDetailText: String? = input.provider == .zai ? zaiTimeDetail : nil
         if input.provider == .warp,

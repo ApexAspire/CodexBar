@@ -183,9 +183,11 @@ struct MenuDescriptor {
                 {
                     entries.append(.text(detail, .secondary))
                 }
-                if provider == .abacus,
+                if provider == .abacus || provider == .kimi || provider == .zai,
                    let pace = store.weeklyPace(provider: provider, window: primary)
                 {
+                    // Abacus bills monthly credits on primary; Kimi and ZAI keep
+                    // their weekly cap in primary on this fork.
                     let paceSummary = UsagePaceText.weeklySummary(pace: pace)
                     entries.append(.text(paceSummary, .secondary))
                 }
@@ -218,7 +220,11 @@ struct MenuDescriptor {
                 {
                     entries.append(.text(detail, .secondary))
                 }
-                if let pace = store.weeklyPace(provider: provider, window: weekly) {
+                // Kimi's secondary is the 5-hour rate limit and ZAI's is the MCP
+                // monthly window — not weekly caps, so no weekly pace there.
+                if provider != .kimi && provider != .zai,
+                   let pace = store.weeklyPace(provider: provider, window: weekly)
+                {
                     let paceSummary = UsagePaceText.weeklySummary(pace: pace)
                     entries.append(.text(paceSummary, .secondary))
                 }

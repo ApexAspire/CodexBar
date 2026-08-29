@@ -74,8 +74,11 @@ extension StatusItemController {
 
         let sourceLabel = snapshotOverride == nil ? self.store.sourceLabel(for: target) : nil
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
-        // Abacus uses primary for monthly credits (no secondary window)
-        let paceWindow = target == .abacus ? snapshot?.primary : snapshot?.secondary
+        // Resolve the weekly-cap lane per provider so pace projects against the
+        // weekly quota, not whatever window happens to sit in secondary.
+        let paceWindow = snapshot.flatMap {
+            IconRemainingResolver.weeklyPaceWindow(provider: target, snapshot: $0)
+        }
         let weeklyPace = if let codexProjection,
                             let weekly = codexProjection.rateWindow(for: .weekly)
         {

@@ -1303,6 +1303,34 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `weekly pace window resolves by provider lane`() {
+        // Pace projection must run against the weekly-cap lane, which Kimi and
+        // ZAI keep in primary on this fork (upstream layout keeps it in
+        // secondary; Abacus bills monthly credits on primary).
+        let weekly = RateWindow(
+            usedPercent: 10,
+            windowMinutes: 10080,
+            resetsAt: Date().addingTimeInterval(3600),
+            resetDescription: nil)
+        let other = RateWindow(
+            usedPercent: 40,
+            windowMinutes: 300,
+            resetsAt: Date().addingTimeInterval(3600),
+            resetDescription: nil)
+        let snapshot = UsageSnapshot(
+            primary: weekly,
+            secondary: other,
+            updatedAt: Date())
+
+        let kimi = IconRemainingResolver.weeklyPaceWindow(provider: .kimi, snapshot: snapshot)
+        #expect(kimi?.usedPercent == 10)
+        let zai = IconRemainingResolver.weeklyPaceWindow(provider: .zai, snapshot: snapshot)
+        #expect(zai?.usedPercent == 10)
+        let claude = IconRemainingResolver.weeklyPaceWindow(provider: .claude, snapshot: snapshot)
+        #expect(claude?.usedPercent == 40)
+    }
+
+    @Test
     func `kimi stacked icon is light in dark appearance`() throws {
         let appearance = try #require(NSAppearance(named: .darkAqua))
         let image = StackedTextStatusView.renderedImage(
