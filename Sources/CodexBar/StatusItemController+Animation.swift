@@ -714,16 +714,49 @@ extension StatusItemController {
         self.applyIcon(phase: phase, bypassMergedMenuTrackingDeferral: true)
     }
 
+    /// Output scale for menu-bar composites, matching `IconRenderer.outputScale`.
+    private static let flashOutputScale: CGFloat = 2
+
     static func quotaWarningFlashImage(base: NSImage) -> NSImage {
         let image = NSImage(size: base.size)
-        image.lockFocus()
         let rect = NSRect(origin: .zero, size: base.size)
-        NSColor.systemRed.withAlphaComponent(0.22).setFill()
-        NSBezierPath(roundedRect: rect.insetBy(dx: 1, dy: 1), xRadius: 4, yRadius: 4).fill()
-        base.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
-        NSColor.systemRed.withAlphaComponent(0.28).setFill()
-        NSBezierPath(rect: rect).fill()
-        image.unlockFocus()
+        let draw = {
+            NSColor.systemRed.withAlphaComponent(0.22).setFill()
+            NSBezierPath(roundedRect: rect.insetBy(dx: 1, dy: 1), xRadius: 4, yRadius: 4).fill()
+            base.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+            NSColor.systemRed.withAlphaComponent(0.28).setFill()
+            NSBezierPath(rect: rect).fill()
+        }
+        // Same defect class as StackedTextStatusView.renderedImage: lockFocus() takes its backing
+        // scale from the deepest screen at render time, and this composite sits behind the
+        // content-only render signature in shouldSkipProviderIconRender — so a 1x bake before the
+        // status item joins a Retina screen would be cached until the displayed values change.
+        if let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int((base.size.width * self.flashOutputScale).rounded()),
+            pixelsHigh: Int((base.size.height * self.flashOutputScale).rounded()),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0)
+        {
+            rep.size = base.size // points
+            image.addRepresentation(rep)
+            NSGraphicsContext.saveGraphicsState()
+            if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
+                NSGraphicsContext.current = ctx
+                draw()
+            }
+            NSGraphicsContext.restoreGraphicsState()
+        } else {
+            // Fallback to legacy focus if the bitmap rep fails for any reason.
+            image.lockFocus()
+            draw()
+            image.unlockFocus()
+        }
         image.isTemplate = false
         return image
     }

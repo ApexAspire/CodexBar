@@ -1331,6 +1331,23 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `quota warning flash image always rasterises at 2x`() throws {
+        // Sibling of the stacked-text defect: this composite is cached behind the same
+        // content-only render signature, so a 1x bake would persist until the values change.
+        let base = NSImage(size: NSSize(width: 24, height: 18))
+        base.lockFocus()
+        NSColor.white.setFill()
+        NSRect(x: 0, y: 0, width: 24, height: 18).fill()
+        base.unlockFocus()
+
+        let flashed = StatusItemController.quotaWarningFlashImage(base: base)
+        let rep = try #require(flashed.representations.first)
+        #expect(rep.pixelsWide == 48)
+        #expect(rep.pixelsHigh == 36)
+        #expect(flashed.size == base.size)
+    }
+
+    @Test
     func `stacked status image always rasterises at 2x`() throws {
         // NSImage.lockFocus() takes its backing scale from the deepest screen at render time, so a
         // status item drawn before it joins a Retina screen used to bake a 1x bitmap that was then
