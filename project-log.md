@@ -46,3 +46,9 @@ Fork remains on `stacked-squash`, which contains current `upstream/main` plus th
 - §3293 (later): Kimi/ZAI rich-info parity remainder (user request 2026-08-30; weekly pace projection DELIVERED `56ec81cfc`) — 5-hour session-lane projection (`UsagePaceText.sessionPace` allowlists only codex/claude/ollama; Kimi secondary / ZAI tertiary have no pace render site) and API-equivalent token cost over 30 days (needs a token-usage source; research GLM monitor endpoints, Moonshot platform API, local `kimi` CLI logs before scoping).
 - §3294 (next): finalize `stacked-squash` → fork `main` (requires operator-authorised `git push --force-with-lease`; origin/main sits 6 obsolete commits ahead, merge-base `3fe9d0c7a`) + stable self-signed code signing (stop Bartender losing track across ad-hoc rebuilds) + optional clean stacked-text upstream PR. This is the recorded merge blocker for the 2026-08-30 handed-over close.
 - Watch for OpenAI restoring session limits (Reddit reports the removal is temporary) — no code change needed; verify `S:` line repopulates.
+
+## 2026-08-30 — §3294 signing identity done, main finalization pending operator
+
+- `package_app.sh` default identity repointed to the existing "Developer ID Application: Apex Aspire Limited (57CS87GDZL)" (commit `64017f787`, pushed to origin/stacked-squash). APP_IDENTITY env still overrides.
+- Repackaged + installed with the real identity: deep-strict verify OK, hardened runtime, BTM Launch-at-Login now bound to Team Identifier 57CS87GDZL (Bartender churn root cause fixed). CLI live check green.
+- Force-with-lease stacked-squash→main blocked by consolidated Bash policy (2 attempts); operator holds the one-liner. After it lands, subsequent main updates are normal fast-forward pushes of stacked-squash:main.
