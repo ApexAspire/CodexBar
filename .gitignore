@@ -45,3 +45,6 @@ docs/.astro/
 
 # Claude Code local runtime state (§1585)
 .claude/
+
+# Codex CLI local runtime state
+.codex/state/
