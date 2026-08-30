@@ -76,6 +76,7 @@ final class StackedTextStatusView: NSView {
         let weeklySeverity: UsageSeverity
     }
 
+    private static let outputScale: CGFloat = 2
     private static let brandSize = CGSize(width: 16, height: 16)
     private static let gap: CGFloat = 3
     private static let dotDiameter: CGFloat = 5
@@ -133,7 +134,6 @@ final class StackedTextStatusView: NSView {
             height: self.totalHeight)
         let image = NSImage(size: size)
         image.isTemplate = false
-        image.lockFocus()
         let draw = {
             NSColor.clear.setFill()
             NSRect(origin: .zero, size: size).fill()
@@ -175,12 +175,44 @@ final class StackedTextStatusView: NSView {
             weeklyText.draw(in: textRect)
             sessionText.draw(in: textRect.offsetBy(dx: 0, dy: 8))
         }
-        if let appearance {
-            appearance.performAsCurrentDrawingAppearance(draw)
-        } else {
-            draw()
+        let render = {
+            if let appearance {
+                appearance.performAsCurrentDrawingAppearance(draw)
+            } else {
+                draw()
+            }
         }
-        image.unlockFocus()
+        // Rasterise into an explicit 2x rep, the way IconRenderer.renderImage does. NSImage.lockFocus()
+        // takes its backing scale from the deepest screen at render time, so an item drawn before the
+        // status item has joined a Retina screen (launch, display wake, display reconnect) bakes a 1x
+        // bitmap that is then upscaled forever — the render signature is content-only, so the stale
+        // image survives until the displayed numbers happen to change.
+        if let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int((size.width * self.outputScale).rounded()),
+            pixelsHigh: Int((size.height * self.outputScale).rounded()),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0)
+        {
+            rep.size = size // points
+            image.addRepresentation(rep)
+            NSGraphicsContext.saveGraphicsState()
+            if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
+                NSGraphicsContext.current = ctx
+                render()
+            }
+            NSGraphicsContext.restoreGraphicsState()
+        } else {
+            // Fallback to legacy focus if the bitmap rep fails for any reason.
+            image.lockFocus()
+            render()
+            image.unlockFocus()
+        }
         return image
     }
 

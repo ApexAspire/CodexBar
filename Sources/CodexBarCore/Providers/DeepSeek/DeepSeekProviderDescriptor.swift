@@ -30,8 +30,13 @@ public enum DeepSeekProviderDescriptor {
                 iconResourceName: "ProviderIcon-deepseek",
                 color: ProviderColor(red: 0.32, green: 0.49, blue: 0.94)),
             tokenCost: ProviderTokenCostConfig(
+                // The per-day usage analysis lives on platform.deepseek.com's web-console API,
+                // which refuses the `sk-` API key this provider authenticates with (HTTP 200 with
+                // `code: 40003`). `DeepSeekUsageSummary` parses the daily lanes correctly and is
+                // covered by tests, so flipping this back on is all that a future cookie-backed
+                // source would need — but with an API key there is no history to chart.
                 supportsTokenCost: false,
-                noDataMessage: { "DeepSeek per-day cost history is not available via API." }),
+                noDataMessage: { "DeepSeek per-day cost history needs web-console sign-in." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [DeepSeekAPIFetchStrategy()] })),

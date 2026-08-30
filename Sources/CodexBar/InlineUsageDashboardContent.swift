@@ -132,6 +132,14 @@ extension UsageMenuCardView.Model {
         {
             return Self.zaiInlineDashboard(modelUsage: modelUsage, now: input.now)
         }
+        // Kimi has no usage API of its own; the history comes from the CLI's own session logs,
+        // which carry a genuine per-turn input/output split and the model that served each turn.
+        if input.provider == .kimi,
+           let tokenSnapshot = input.tokenSnapshot,
+           !tokenSnapshot.daily.isEmpty
+        {
+            return Self.kimiInlineDashboard(tokenSnapshot)
+        }
         if input.provider == .minimax,
            input.showOptionalCreditsAndExtraUsage,
            let billing = input.snapshot?.minimaxUsage?.billingSummary,
@@ -430,6 +438,78 @@ extension UsageMenuCardView.Model {
                     emphasis: false),
             ],
             points: points,
+            detailLines: details)
+    }
+
+    static func kimiInlineDashboard(_ snapshot: CostUsageTokenSnapshot) -> InlineUsageDashboardModel {
+        let daily = snapshot.daily.suffix(30)
+        let points = daily.map { entry in
+            let total = entry.totalTokens ?? 0
+            return InlineUsageDashboardModel.Point(
+                id: entry.date,
+                label: Self.shortDayLabel(entry.date),
+                value: Double(total),
+                accessibilityValue: "\(entry.date): \(UsageFormatter.tokenCountString(total)) \(L("tokens"))")
+        }
+
+        func sum(_ keyPath: KeyPath<CostUsageDailyReport.Entry, Int?>) -> Int {
+            daily.reduce(0) { $0 + ($1[keyPath: keyPath] ?? 0) }
+        }
+        let input = sum(\.inputTokens)
+        let output = sum(\.outputTokens)
+        let cacheRead = sum(\.cacheReadTokens)
+        let requests = daily.reduce(0) { $0 + ($1.requestCount ?? 0) }
+
+        // Spend is what the same traffic would have cost on Moonshot's metered API — the plan
+        // itself is a subscription, so this is a comparison figure, not a bill.
+        func money(_ value: Double?) -> String {
+            value.map { UsageFormatter.currencyString(max(0, $0), currencyCode: snapshot.currencyCode) } ?? "—"
+        }
+        let windowCost = snapshot.last30DaysCostUSD
+            ?? (daily.compactMap(\.costUSD).isEmpty ? nil : daily.compactMap(\.costUSD).reduce(0, +))
+        let windowTokens = snapshot.last30DaysTokens ?? daily.reduce(0) { $0 + ($1.totalTokens ?? 0) }
+        let todayCost = daily.last?.costUSD
+        let todayTokens = daily.last?.totalTokens ?? 0
+
+        var models: [String: Int] = [:]
+        for entry in daily {
+            for breakdown in entry.modelBreakdowns ?? [] {
+                models[breakdown.modelName, default: 0] += breakdown.totalTokens ?? 0
+            }
+        }
+        let topModel = models.max { $0.value < $1.value }?.key
+
+        var details: [String] = []
+        if let topModel {
+            details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
+        }
+        details.append("\(L("input")): \(UsageFormatter.tokenCountString(input))")
+        details.append("\(L("cached input")): \(UsageFormatter.tokenCountString(cacheRead))")
+        details.append("\(L("output")): \(UsageFormatter.tokenCountString(output))")
+        details.append("\(L("requests")): \(requests)")
+
+        return InlineUsageDashboardModel(
+            accessibilityLabel: L("Kimi 30 day token usage trend"),
+            valueStyle: .tokens,
+            kpis: [
+                .init(
+                    title: L("Today"),
+                    value: "\(money(todayCost)) · \(UsageFormatter.tokenCountString(todayTokens))",
+                    emphasis: true),
+                .init(
+                    title: snapshot.historyLabel ?? L("Last 30 days"),
+                    value: "\(money(windowCost)) · \(UsageFormatter.tokenCountString(windowTokens))",
+                    emphasis: false),
+                .init(
+                    title: L("Models"),
+                    value: topModel.map { Self.shortModelName($0) } ?? "—",
+                    emphasis: false),
+                .init(
+                    title: L("Requests"),
+                    value: "\(requests)",
+                    emphasis: false),
+            ],
+            points: Array(points),
             detailLines: details)
     }
 

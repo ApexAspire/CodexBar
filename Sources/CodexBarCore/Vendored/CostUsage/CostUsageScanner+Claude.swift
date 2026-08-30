@@ -158,16 +158,29 @@ extension CostUsageScanner {
                         let output = max(0, toInt(usage["output_tokens"]))
                         if input == 0, cacheCreate == 0, cacheRead == 0, output == 0 { return }
 
-                        let cost = CostUsagePricing.claudeCostUSD(
-                            model: model,
-                            inputTokens: input,
-                            cacheReadInputTokens: cacheRead,
-                            cacheCreationInputTokens: cacheCreate,
-                            cacheCreationInputTokens1h: cacheCreate1h,
-                            outputTokens: output,
-                            pricingDate: timestamp,
-                            modelsDevCatalog: modelsDevCatalog,
-                            modelsDevCacheRoot: modelsDevCacheRoot)
+                        // GLM turns sit in these same transcripts but must never be priced off
+                        // Anthropic's rate card.
+                        let cost = Self.modelNameLooksGLM(model)
+                            ? CostUsagePricing.gatewayCostUSD(
+                                providerID: CostUsagePricing.zaiModelsDevProviderID,
+                                model: model,
+                                inputTokens: input,
+                                cacheReadInputTokens: cacheRead,
+                                cacheCreationInputTokens: cacheCreate,
+                                cacheCreationInputTokens1h: cacheCreate1h,
+                                outputTokens: output,
+                                modelsDevCatalog: modelsDevCatalog,
+                                modelsDevCacheRoot: modelsDevCacheRoot)
+                            : CostUsagePricing.claudeCostUSD(
+                                model: model,
+                                inputTokens: input,
+                                cacheReadInputTokens: cacheRead,
+                                cacheCreationInputTokens: cacheCreate,
+                                cacheCreationInputTokens1h: cacheCreate1h,
+                                outputTokens: output,
+                                pricingDate: timestamp,
+                                modelsDevCatalog: modelsDevCatalog,
+                                modelsDevCacheRoot: modelsDevCacheRoot)
                         let costNanos = cost.map { Int(($0 * costScale).rounded()) } ?? 0
                         let tokens = ClaudeTokens(
                             input: input,
@@ -382,9 +395,27 @@ extension CostUsageScanner {
             true
         case .vertexAIOnly:
             self.isVertexAIUsageEntry(obj: obj)
+        case .glmOnly:
+            self.isGLMUsageEntry(obj: obj)
         case .excludeVertexAI:
-            !self.isVertexAIUsageEntry(obj: obj)
+            !self.isVertexAIUsageEntry(obj: obj) && !self.isGLMUsageEntry(obj: obj)
         }
+    }
+
+    /// z.ai's GLM coding plan is driven through Claude Code by overriding `ANTHROPIC_BASE_URL`, so
+    /// its turns are written into the ordinary Claude transcripts and are only distinguishable by
+    /// model id (`glm-5.3`, `glm-5.3-flash`, `glm-4.6`, …).
+    static func isGLMUsageEntry(obj: [String: Any]) -> Bool {
+        guard let message = obj["message"] as? [String: Any],
+              let model = message["model"] as? String
+        else {
+            return false
+        }
+        return Self.modelNameLooksGLM(model)
+    }
+
+    static func modelNameLooksGLM(_ model: String) -> Bool {
+        model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().hasPrefix("glm-")
     }
 
     private static func isVertexAIUsageEntry(obj: [String: Any]) -> Bool {
@@ -721,18 +752,31 @@ extension CostUsageScanner {
             var aggregate = repricedCosts[key] ?? ClaudeRepricedCost()
             aggregate.sampleCount += 1
             let isPriced = row.costPriced ?? (row.costNanos > 0)
-            let currentPricingCost = CostUsagePricing.claudeCostUSD(
-                model: row.model,
-                inputTokens: row.input,
-                cacheReadInputTokens: row.cacheRead,
-                cacheCreationInputTokens: row.cacheCreate,
-                cacheCreationInputTokens1h: row.cacheCreate1h ?? 0,
-                outputTokens: row.output,
-                pricingDate: row.timestampUnixMs.map {
-                    Date(timeIntervalSince1970: Double($0) / 1000)
-                },
-                modelsDevCatalog: modelsDevCatalog,
-                modelsDevCacheRoot: modelsDevCacheRoot)
+            // Repricing must respect the same gateway split as the initial scan, or a cached GLM
+            // row would silently be revalued at Anthropic rates on the next rebuild.
+            let currentPricingCost = Self.modelNameLooksGLM(row.model)
+                ? CostUsagePricing.gatewayCostUSD(
+                    providerID: CostUsagePricing.zaiModelsDevProviderID,
+                    model: row.model,
+                    inputTokens: row.input,
+                    cacheReadInputTokens: row.cacheRead,
+                    cacheCreationInputTokens: row.cacheCreate,
+                    cacheCreationInputTokens1h: row.cacheCreate1h ?? 0,
+                    outputTokens: row.output,
+                    modelsDevCatalog: modelsDevCatalog,
+                    modelsDevCacheRoot: modelsDevCacheRoot)
+                : CostUsagePricing.claudeCostUSD(
+                    model: row.model,
+                    inputTokens: row.input,
+                    cacheReadInputTokens: row.cacheRead,
+                    cacheCreationInputTokens: row.cacheCreate,
+                    cacheCreationInputTokens1h: row.cacheCreate1h ?? 0,
+                    outputTokens: row.output,
+                    pricingDate: row.timestampUnixMs.map {
+                        Date(timeIntervalSince1970: Double($0) / 1000)
+                    },
+                    modelsDevCatalog: modelsDevCatalog,
+                    modelsDevCacheRoot: modelsDevCacheRoot)
             let cost: Double? = if isPriced, row.costNanos == 0 {
                 0
             } else if let currentPricingCost {

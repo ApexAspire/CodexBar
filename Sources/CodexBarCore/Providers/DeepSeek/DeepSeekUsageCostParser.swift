@@ -283,12 +283,29 @@ public struct DeepSeekDailyUsage: Sendable, Equatable {
     public let totalTokens: Int
     public let cost: Double?
     public let requestCount: Int
+    /// PROMPT_CACHE_MISS_TOKEN — input tokens billed at the full prompt rate.
+    public let cacheMissTokens: Int
+    /// PROMPT_CACHE_HIT_TOKEN — input tokens served from DeepSeek's prompt cache.
+    public let cacheHitTokens: Int
+    /// RESPONSE_TOKEN — output tokens.
+    public let outputTokens: Int
 
-    public init(date: String, totalTokens: Int, cost: Double?, requestCount: Int) {
+    public init(
+        date: String,
+        totalTokens: Int,
+        cost: Double?,
+        requestCount: Int,
+        cacheMissTokens: Int = 0,
+        cacheHitTokens: Int = 0,
+        outputTokens: Int = 0)
+    {
         self.date = date
         self.totalTokens = totalTokens
         self.cost = cost
         self.requestCount = requestCount
+        self.cacheMissTokens = cacheMissTokens
+        self.cacheHitTokens = cacheHitTokens
+        self.outputTokens = outputTokens
     }
 }
 
@@ -296,11 +313,32 @@ public struct DeepSeekDailyUsage: Sendable, Equatable {
 
 enum DeepSeekUsageCostParser {
     static func decodeAmountPayload(data: Data) throws -> DeepSeekAmountPayload {
-        try JSONDecoder().decode(DeepSeekAmountPayload.self, from: data)
+        let payload = try JSONDecoder().decode(DeepSeekAmountPayload.self, from: data)
+        try Self.rejectBusinessError(code: payload.code, message: payload.msg)
+        return payload
     }
 
     static func decodeCostPayload(data: Data) throws -> DeepSeekCostPayload {
-        try JSONDecoder().decode(DeepSeekCostPayload.self, from: data)
+        let payload = try JSONDecoder().decode(DeepSeekCostPayload.self, from: data)
+        try Self.rejectBusinessError(code: payload.code, message: payload.msg)
+        return payload
+    }
+
+    /// The platform usage API answers `HTTP 200` even when it refuses the request, putting the real
+    /// outcome in the body (`{"code": 40003, "msg": "Authorization Failed (invalid token)"}`). The
+    /// transport-level status check upstream therefore cannot see the failure, and without this the
+    /// refusal decodes into a payload with no `days` and is indistinguishable from a genuinely
+    /// unused month — an empty chart that looks like real data.
+    private static func rejectBusinessError(code: Int?, message: String?) throws {
+        guard let code, code != 0 else { return }
+        let detail = message?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = (detail?.isEmpty == false) ? "\(detail!) (code \(code))" : "code \(code)"
+        // 40003 and its neighbours are credential refusals: the usage analysis endpoints live on the
+        // web console API and do not accept a plain `sk-` API key.
+        if code == 40003 || code == 40001 || code == 401 {
+            throw DeepSeekUsageError.missingCredentials
+        }
+        throw DeepSeekUsageError.apiError(text)
     }
 
     static func parse(
@@ -668,15 +706,28 @@ enum DeepSeekUsageCostParser {
             var dayTokens = 0
             var dayCost: Double?
             var dayRequests = 0
+            var dayCacheMiss = 0
+            var dayCacheHit = 0
+            var dayOutput = 0
 
             if let amounts = ctx.amountMap[date] {
                 for items in amounts.values {
                     for item in items {
                         let category = DeepSeekUsageCategory(rawValue: item.type ?? "")
+                        let amount = Self.parseTokenAmount(item.amount)
                         if category == .request {
-                            dayRequests += Self.parseTokenAmount(item.amount)
-                        } else {
-                            dayTokens += Self.parseTokenAmount(item.amount)
+                            dayRequests += amount
+                            continue
+                        }
+                        // Unknown categories still count toward the day total (a DeepSeek rename must
+                        // show up as a visible token gap between total and the lanes, never as silent
+                        // zeros) but cannot be attributed to an input/output lane.
+                        dayTokens += amount
+                        switch category {
+                        case .promptCacheMissToken: dayCacheMiss += amount
+                        case .promptCacheHitToken: dayCacheHit += amount
+                        case .responseToken: dayOutput += amount
+                        case .request, .unknown: break
                         }
                     }
                 }
@@ -702,7 +753,10 @@ enum DeepSeekUsageCostParser {
                 date: date,
                 totalTokens: dayTokens,
                 cost: dayCost,
-                requestCount: dayRequests))
+                requestCount: dayRequests,
+                cacheMissTokens: dayCacheMiss,
+                cacheHitTokens: dayCacheHit,
+                outputTokens: dayOutput))
         }
 
         return result

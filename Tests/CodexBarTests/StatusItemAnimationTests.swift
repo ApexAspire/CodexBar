@@ -1331,6 +1331,24 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `stacked status image always rasterises at 2x`() throws {
+        // NSImage.lockFocus() takes its backing scale from the deepest screen at render time, so a
+        // status item drawn before it joins a Retina screen used to bake a 1x bitmap that was then
+        // upscaled for the life of the cached render signature. The rep must be 2x unconditionally.
+        let image = StackedTextStatusView.renderedImage(
+            for: StackedTextStatusView.Content(
+                provider: .claude,
+                sessionText: "S: 8%",
+                weeklyText: "W:90%",
+                sessionSeverity: .normal,
+                weeklySeverity: .warning),
+            appearance: NSAppearance(named: .darkAqua))
+        let rep = try #require(image.representations.first)
+        #expect(rep.pixelsWide == Int(image.size.width * 2))
+        #expect(rep.pixelsHigh == Int(image.size.height * 2))
+    }
+
+    @Test
     func `kimi stacked icon is light in dark appearance`() throws {
         let appearance = try #require(NSAppearance(named: .darkAqua))
         let image = StackedTextStatusView.renderedImage(

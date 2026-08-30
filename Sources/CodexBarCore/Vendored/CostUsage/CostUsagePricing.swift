@@ -391,6 +391,11 @@ enum CostUsagePricing {
 
     private static let codexModelsDevProviderID = "openai"
     private static let claudeModelsDevProviderID = "anthropic"
+    /// z.ai's pay-as-you-go API catalogue. Deliberately NOT `zai-coding-plan`: the point of the
+    /// figure is what the same traffic would have cost off the subscription.
+    static let zaiModelsDevProviderID = "zai"
+    /// Moonshot's pay-as-you-go API catalogue, for the same reason (not `kimi-for-coding`).
+    static let moonshotModelsDevProviderID = "moonshotai"
 
     static func normalizeCodexModel(_ raw: String) -> String {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -644,6 +649,41 @@ enum CostUsagePricing {
                 cacheCreationInputCostPerTokenAboveThreshold: pricing.cacheCreationInputCostPerTokenAboveThreshold,
                 cacheReadInputCostPerTokenAboveThreshold: pricing.cacheReadInputCostPerTokenAboveThreshold),
             tokens: tokens)
+    }
+
+    /// Prices a turn against a third-party gateway's published pay-as-you-go rates.
+    ///
+    /// There is no hard-coded rate card for these providers on purpose. Their model line-ups move
+    /// faster than a table in this repo can track, and a stale hard-coded rate produces a confident
+    /// wrong number; models.dev is already fetched and cached for Claude and Codex, so an unknown
+    /// model simply returns nil here and the row stays counted in tokens but unpriced.
+    static func gatewayCostUSD(
+        providerID: String,
+        model: String,
+        inputTokens: Int,
+        cacheReadInputTokens: Int,
+        cacheCreationInputTokens: Int,
+        cacheCreationInputTokens1h: Int = 0,
+        outputTokens: Int,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> Double?
+    {
+        guard let lookup = self.modelsDevLookup(
+            providerID: providerID,
+            model: model,
+            catalog: modelsDevCatalog,
+            cacheRoot: modelsDevCacheRoot)
+        else {
+            return nil
+        }
+        return self.claudeCostUSD(
+            pricing: lookup.pricing,
+            tokens: ClaudeCostTokens(
+                input: inputTokens,
+                cacheRead: cacheReadInputTokens,
+                cacheCreation: cacheCreationInputTokens,
+                cacheCreation1h: cacheCreationInputTokens1h,
+                output: outputTokens))
     }
 
     static func modelsDevCatalog(now: Date = Date(), cacheRoot: URL? = nil) -> ModelsDevCatalog? {

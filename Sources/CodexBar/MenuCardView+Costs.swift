@@ -108,6 +108,12 @@ extension UsageMenuCardView.Model {
             L("Reported by OpenAI Admin API organization usage.")
         case .mistral:
             L("Reported by Mistral billing usage.")
+        case .deepseek:
+            L("Reported by the DeepSeek platform API for the current month.")
+        case .zai:
+            L("Estimated from local Claude Code logs at z.ai pay-as-you-go rates.")
+        case .kimi:
+            L("Estimated from local Kimi CLI logs at Moonshot pay-as-you-go rates.")
         default:
             nil
         }

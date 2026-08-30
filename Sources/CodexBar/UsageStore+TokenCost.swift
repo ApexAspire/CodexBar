@@ -70,6 +70,8 @@ extension UsageStore {
             snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot()
         case .mistral:
             snapshot?.mistralUsage?.toCostUsageTokenSnapshot(historyDays: self.settings.costUsageHistoryDays)
+        case .deepseek:
+            snapshot?.deepseekUsage?.toCostUsageTokenSnapshot(historyDays: self.settings.costUsageHistoryDays)
         default:
             nil
         }
@@ -77,7 +79,7 @@ extension UsageStore {
 
     nonisolated static func tokenCostRequiresProviderSnapshot(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .mistral, .openai:
+        case .deepseek, .mistral, .openai:
             true
         default:
             false

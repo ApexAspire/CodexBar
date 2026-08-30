@@ -13,15 +13,22 @@ enum CostUsageScanner {
     static let codexActiveSessionLookbackDays = 30
     static let costScale = 1_000_000_000.0
 
+    /// Several providers speak the Anthropic wire protocol and therefore write their turns into the
+    /// same `~/.claude/projects` transcripts: Vertex AI (Anthropic models via GCP) and any gateway
+    /// reached by pointing `ANTHROPIC_BASE_URL` elsewhere, such as z.ai's GLM coding plan. Without a
+    /// filter every one of them is counted as Claude usage.
     enum ClaudeLogProviderFilter {
         case all
         case vertexAIOnly
+        case glmOnly
+        /// Native Anthropic traffic only — excludes Vertex AI and third-party gateways.
         case excludeVertexAI
     }
 
     struct Options {
         var codexSessionsRoot: URL?
         var claudeProjectsRoots: [URL]?
+        var kimiSessionsRoots: [URL]?
         var cacheRoot: URL?
         var codexTraceDatabaseURL: URL?
         var refreshMinIntervalSeconds: TimeInterval = 60
@@ -447,9 +454,28 @@ enum CostUsageScanner {
                 now: now,
                 options: filtered,
                 checkCancellation: checkCancellation)
-        case .openai, .azureopenai, .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba,
+        case .kimi:
+            return try self.loadKimiDaily(
+                range: range,
+                now: now,
+                options: options,
+                checkCancellation: checkCancellation)
+        case .zai:
+            // GLM runs through Claude Code against z.ai's Anthropic-compatible gateway, so its
+            // turns live in the Claude transcripts and are separated by model id.
+            var glmFiltered = options
+            if glmFiltered.claudeLogProviderFilter == .all {
+                glmFiltered.claudeLogProviderFilter = .glmOnly
+            }
+            return try self.loadClaudeDaily(
+                provider: .zai,
+                range: range,
+                now: now,
+                options: glmFiltered,
+                checkCancellation: checkCancellation)
+        case .openai, .azureopenai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba,
              .alibabatokenplan, .factory,
-             .copilot, .devin, .minimax, .manus, .kilo, .kiro, .kimi, .kimik2, .moonshot, .augment, .jetbrains, .amp,
+             .copilot, .devin, .minimax, .manus, .kilo, .kiro, .kimik2, .moonshot, .augment, .jetbrains, .amp,
              .ollama, .t3chat, .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .abacus,
              .mistral, .deepseek, .codebuff, .crof, .windsurf, .venice, .commandcode, .stepfun, .bedrock, .grok,
              .groq, .llmproxy, .deepgram:

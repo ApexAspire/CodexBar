@@ -311,6 +311,114 @@ struct DeepSeekUsageCostParserTests {
         #expect(summary.currency == "CNY")
     }
 
+    /// The platform usage API answers HTTP 200 and reports refusal in the body. Decoding that as a
+    /// success yields a month with no days, which renders as a confident empty chart rather than an
+    /// error — the exact failure this guards.
+    @Test
+    func `in-body authorization failure is rejected rather than parsed as an empty month`() throws {
+        let refusal = Data("""
+        {"code": 40003, "msg": "Authorization Failed (invalid token)", "data": {}}
+        """.utf8)
+
+        func isMissingCredentials(_ body: () throws -> Any) -> Bool {
+            do {
+                _ = try body()
+                return false
+            } catch {
+                if case DeepSeekUsageError.missingCredentials = error { return true }
+                return false
+            }
+        }
+        #expect(isMissingCredentials { try DeepSeekUsageCostParser.decodeAmountPayload(data: refusal) })
+        #expect(isMissingCredentials { try DeepSeekUsageCostParser.decodeCostPayload(data: refusal) })
+    }
+
+    @Test
+    func `non-auth business errors surface the API message`() throws {
+        let failure = Data("""
+        {"code": 50000, "msg": "Internal error", "data": {}}
+        """.utf8)
+        var captured: String?
+        do {
+            _ = try DeepSeekUsageCostParser.decodeAmountPayload(data: failure)
+        } catch let DeepSeekUsageError.apiError(message) {
+            captured = message
+        }
+        #expect(captured == "Internal error (code 50000)")
+    }
+
+    @Test
+    func `successful payloads with code zero still decode`() throws {
+        let ok = Data("""
+        {"code": 0, "msg": "", "data": {"biz_code": 0, "biz_msg": "", "biz_data": {"total": [], "days": []}}}
+        """.utf8)
+        let payload = try DeepSeekUsageCostParser.decodeAmountPayload(data: ok)
+        #expect(payload.code == 0)
+    }
+
+    @Test
+    func `daily buckets keep the input, cache and output token lanes apart`() throws {
+        let amountJSON = """
+        {
+          "code": 0, "msg": "",
+          "data": { "biz_code": 0, "biz_msg": "", "biz_data": {
+            "total": [ { "model": "deepseek-v4-flash", "usage": [
+              {"type": "PROMPT_CACHE_HIT_TOKEN", "amount": "100686720"},
+              {"type": "PROMPT_CACHE_MISS_TOKEN", "amount": "1305432"},
+              {"type": "RESPONSE_TOKEN", "amount": "656338"},
+              {"type": "REQUEST", "amount": "1212"} ] } ],
+            "days": [ { "date": "2026-05-26", "data": [ { "model": "deepseek-v4-flash", "usage": [
+              {"type": "PROMPT_CACHE_HIT_TOKEN", "amount": "100686720"},
+              {"type": "PROMPT_CACHE_MISS_TOKEN", "amount": "1305432"},
+              {"type": "RESPONSE_TOKEN", "amount": "656338"},
+              {"type": "REQUEST", "amount": "1212"} ] } ] } ]
+          } }
+        }
+        """
+        let costJSON = """
+        {
+          "code": 0, "msg": "",
+          "data": { "biz_code": 0, "biz_msg": "", "biz_data": [ {
+            "total": [ { "model": "deepseek-v4-flash", "usage": [
+              {"type": "PROMPT_CACHE_HIT_TOKEN", "amount": "2.0137344000000000"},
+              {"type": "PROMPT_CACHE_MISS_TOKEN", "amount": "1.3054320000000000"},
+              {"type": "RESPONSE_TOKEN", "amount": "1.3126760000000000"},
+              {"type": "REQUEST", "amount": "0"} ] } ],
+            "days": [ { "date": "2026-05-26", "data": [ { "model": "deepseek-v4-flash", "usage": [
+              {"type": "PROMPT_CACHE_HIT_TOKEN", "amount": "2.0137344000000000"},
+              {"type": "PROMPT_CACHE_MISS_TOKEN", "amount": "1.3054320000000000"},
+              {"type": "RESPONSE_TOKEN", "amount": "1.3126760000000000"},
+              {"type": "REQUEST", "amount": "0"} ] } ] } ],
+            "currency": "CNY" } ] }
+        }
+        """
+
+        let summary = try DeepSeekUsageFetcher._parseUsageSummaryForTesting(
+            amountData: Data(amountJSON.utf8),
+            costData: Data(costJSON.utf8),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+
+        let day = try #require(summary.daily.first { $0.date == "2026-05-26" })
+        #expect(day.cacheHitTokens == 100_686_720)
+        #expect(day.cacheMissTokens == 1_305_432)
+        #expect(day.outputTokens == 656_338)
+        #expect(day.totalTokens == 102_648_490)
+        #expect(day.requestCount == 1212)
+
+        // The lanes must survive the projection onto the shared cost-history model, otherwise the
+        // chart can only price a blended total.
+        let snapshot = summary.toCostUsageTokenSnapshot()
+        let entry = try #require(snapshot.daily.first { $0.date == "2026-05-26" })
+        #expect(entry.inputTokens == 1_305_432)
+        #expect(entry.cacheReadTokens == 100_686_720)
+        #expect(entry.outputTokens == 656_338)
+        #expect(entry.totalTokens == 102_648_490)
+        #expect(entry.requestCount == 1212)
+        #expect(snapshot.currencyCode == "CNY")
+        #expect(snapshot.historyLabel == "This month")
+    }
+
     @Test
     func `aggregation uses injected now and calendar for today bucket`() throws {
         let amountJSON = """

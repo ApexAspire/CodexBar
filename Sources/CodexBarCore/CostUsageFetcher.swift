@@ -102,7 +102,9 @@ public struct CostUsageFetcher: Sendable {
         piScannerOptions overridePiScannerOptions: PiSessionCostScanner
             .Options? = nil) async throws -> CostUsageTokenSnapshot
     {
-        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock else {
+        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock
+            || provider == .zai || provider == .kimi
+        else {
             throw CostUsageError.unsupportedProvider(provider)
         }
 
@@ -127,7 +129,7 @@ public struct CostUsageFetcher: Sendable {
             options.codexSessionsRoot = URL(fileURLWithPath: codexHomePath, isDirectory: true)
                 .appendingPathComponent("sessions", isDirectory: true)
         }
-        if provider == .codex || provider == .claude {
+        if provider == .codex || provider == .claude || provider == .zai {
             let pricingCacheRoot = options.cacheRoot
             if refreshPricingInBackground {
                 Task.detached(priority: .utility) {
@@ -142,6 +144,8 @@ public struct CostUsageFetcher: Sendable {
             options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
         } else if provider == .claude {
             options.claudeLogProviderFilter = .excludeVertexAI
+        } else if provider == .zai {
+            options.claudeLogProviderFilter = .glmOnly
         }
         if forceRefresh {
             options.refreshMinIntervalSeconds = 0

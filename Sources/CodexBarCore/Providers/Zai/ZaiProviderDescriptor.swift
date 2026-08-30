@@ -28,8 +28,8 @@ public enum ZaiProviderDescriptor {
                 iconResourceName: "ProviderIcon-zai",
                 color: ProviderColor(red: 232 / 255, green: 90 / 255, blue: 106 / 255)),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "z.ai cost summary is not supported." }),
+                supportsTokenCost: true,
+                noDataMessage: { "No GLM sessions recorded in the selected window." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ZaiAPIFetchStrategy()] })),
