@@ -173,10 +173,11 @@ public enum ClaudeAdminAPIUsageFetcher {
                 startingAt: bucket.startingAt,
                 endingAt: bucket.endingAt)
             for result in bucket.results {
-                let input = result.uncachedInputTokens ?? 0
-                let cacheCreation = result.cacheCreation?.totalInputTokens ?? 0
-                let cacheRead = result.cacheReadInputTokens ?? 0
-                let output = result.outputTokens ?? 0
+                let input = max(0, result.uncachedInputTokens ?? 0)
+                let cacheCreation = max(0, result.cacheCreation?.ephemeral1HInputTokens ?? 0)
+                    + max(0, result.cacheCreation?.ephemeral5MInputTokens ?? 0)
+                let cacheRead = max(0, result.cacheReadInputTokens ?? 0)
+                let output = max(0, result.outputTokens ?? 0)
                 let total = input + cacheCreation + cacheRead + output
                 accumulator.inputTokens += input
                 accumulator.cacheCreationInputTokens += cacheCreation
@@ -420,10 +421,6 @@ private struct MessagesResult: Decodable {
 private struct CacheCreation: Decodable {
     let ephemeral1HInputTokens: Int?
     let ephemeral5MInputTokens: Int?
-
-    var totalInputTokens: Int {
-        (self.ephemeral1HInputTokens ?? 0) + (self.ephemeral5MInputTokens ?? 0)
-    }
 
     private enum CodingKeys: String, CodingKey {
         case ephemeral1HInputTokens = "ephemeral_1h_input_tokens"

@@ -23,6 +23,27 @@ struct ClaudeAdminAPIUsageTests {
             browserDetection: browserDetection)
     }
 
+    private func parseMessageResult(_ result: String) throws -> ClaudeAdminAPIUsageSnapshot {
+        let costs = #"{"data":[],"has_more":false,"next_page":null}"#
+        let messages = """
+        {
+          "data": [
+            {
+              "starting_at": "2023-11-14T00:00:00Z",
+              "ending_at": "2023-11-15T00:00:00Z",
+              "results": [\(result)]
+            }
+          ],
+          "has_more": false,
+          "next_page": null
+        }
+        """
+        return try ClaudeAdminAPIUsageFetcher._parseSnapshotForTesting(
+            costs: Data(costs.utf8),
+            messages: Data(messages.utf8),
+            now: Date(timeIntervalSince1970: 1_700_179_200))
+    }
+
     @Test
     func `prefers primary Anthropic admin key environment variable`() {
         let token = ClaudeAdminAPISettingsReader.apiKey(environment: [
@@ -148,6 +169,58 @@ struct ClaudeAdminAPIUsageTests {
         #expect(snapshot.last30Days.totalTokens == 4450)
         #expect(snapshot.topModels.first?.name == "claude-sonnet-4-20250514")
         #expect(snapshot.topModels.first?.totalTokens == 4300)
+    }
+
+    @Test
+    func `clamps negative Anthropic admin token components before aggregation`() throws {
+        let snapshot = try self.parseMessageResult("""
+        {
+          "uncached_input_tokens": -10,
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": -20,
+            "ephemeral_5m_input_tokens": -30
+          },
+          "cache_read_input_tokens": -40,
+          "output_tokens": -50,
+          "model": "claude-sonnet-4-20250514"
+        }
+        """)
+        let day = try #require(snapshot.daily.first)
+        let model = try #require(day.models.first)
+
+        #expect(day.inputTokens == 0)
+        #expect(day.cacheCreationInputTokens == 0)
+        #expect(day.cacheReadInputTokens == 0)
+        #expect(day.outputTokens == 0)
+        #expect(day.totalTokens == 0)
+        #expect(model.inputTokens == 0)
+        #expect(model.cacheCreationInputTokens == 0)
+        #expect(model.cacheReadInputTokens == 0)
+        #expect(model.outputTokens == 0)
+        #expect(model.totalTokens == 0)
+    }
+
+    @Test
+    func `clamps cache creation token components independently`() throws {
+        let snapshot = try self.parseMessageResult("""
+        {
+          "uncached_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": -40,
+            "ephemeral_5m_input_tokens": 60
+          },
+          "cache_read_input_tokens": 0,
+          "output_tokens": 0,
+          "model": "claude-sonnet-4-20250514"
+        }
+        """)
+        let day = try #require(snapshot.daily.first)
+        let model = try #require(day.models.first)
+
+        #expect(day.cacheCreationInputTokens == 60)
+        #expect(day.totalTokens == 60)
+        #expect(model.cacheCreationInputTokens == 60)
+        #expect(model.totalTokens == 60)
     }
 
     @Test
